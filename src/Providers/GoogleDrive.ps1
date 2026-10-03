@@ -32,12 +32,15 @@ function Read-CdGoogleClientFile {
 }
 
 function Find-CdGoogleClientFile {
-    # The newest valid client file in the Downloads folder, or $null.
+    # The newest valid client file in the Downloads folder (or the program folder, where some embedded
+    # browsers save downloads), or $null.
     param([string]$Folder)
-    if (-not $Folder) { $Folder = Get-CdDownloadsFolder }
-    if (-not (Test-Path -LiteralPath $Folder)) { return $null }
-    $files = Get-ChildItem -LiteralPath $Folder -Filter 'client_secret_*.json' -File -ErrorAction SilentlyContinue | Sort-Object -Property LastWriteTime -Descending
-    foreach ($file in $files) {
+    $folders = @($Folder)
+    if (-not $Folder) { $folders = @((Get-CdDownloadsFolder), (Get-CdContext).AppRoot) }
+    $files = foreach ($candidate in $folders) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate)) { Get-ChildItem -LiteralPath $candidate -Filter 'client_secret_*.json' -File -ErrorAction SilentlyContinue }
+    }
+    foreach ($file in (@($files) | Where-Object { $_ } | Sort-Object -Property LastWriteTime -Descending)) {
         $client = Read-CdGoogleClientFile -Path $file.FullName
         if ($client) { return $client }
     }

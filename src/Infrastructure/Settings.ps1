@@ -42,6 +42,7 @@ function New-CdDefaultSettings {
         securityMode  = 'dpapi'
         logLevel      = 'INFO'
         notifications = 'errors'
+        autostartAsked = $false
         profile       = 'standard'
         cache         = [ordered]@{ dir = ''; maxSizePerDrive = '10G'; maxAge = '24h' }
         accounts      = @()

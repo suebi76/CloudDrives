@@ -187,7 +187,7 @@ function Start-CdAddAccountWizard {
 }
 
 function Complete-CdNewDrives {
-    # Offers to connect freshly created drives right away.
+    # Offers to connect freshly created drives right away and - once - to set up the autostart.
     param([object[]]$Drives)
     if (@($Drives).Count -gt 0) {
         $letters = (@($Drives) | ForEach-Object { "$($_.letter):" }) -join ', '
@@ -196,8 +196,25 @@ function Complete-CdNewDrives {
             $results = Invoke-CdConnect -Selection @(@($Drives) | ForEach-Object { $_.id })
             foreach ($item in $results) { Write-CdResult -Result $item }
         }
+        Request-CdAutostart
     }
     Wait-CdKeyPress
+}
+
+function Request-CdAutostart {
+    # Asks once whether drives should be connected automatically at Windows sign-in.
+    $settings = Get-CdSettings
+    if ($settings.autostartAsked -or @($settings.drives).Count -eq 0) { return }
+    if ((Get-CdAutostart).Enabled) { return }
+    Write-CdStep -Text (Get-CdText 'autostart.question')
+    Write-CdInfo -Text (Get-CdText 'autostart.explain') -Color DarkGray
+    if (Read-CdYesNo -Prompt (Get-CdText 'autostart.confirm') -Default $true) {
+        try { Write-CdResult -Result (Enable-CdAutostart) }
+        catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+    }
+    else { Write-CdInfo -Text (Get-CdText 'autostart.later') -Color DarkGray }
+    $settings.autostartAsked = $true
+    Save-CdSettings -Settings $settings
 }
 
 function Read-CdDriveLetter {
@@ -215,6 +232,17 @@ function Read-CdDriveLetter {
             if ($free -contains $candidate) { return $candidate }
             Write-CdInfo -Text (Get-CdText 'wizard.add.letterInvalid' $candidate) -Color Yellow
         }
+    }
+}
+
+function Read-CdDriveName {
+    # Name shown in Explorer. A single letter is almost always a mistyped drive letter, so it is rejected.
+    param([Parameter(Mandatory)][string]$Default)
+    while ($true) {
+        $answer = Read-CdText -Prompt (Get-CdText 'manage.labelPrompt') -Default $Default
+        if ([string]::IsNullOrWhiteSpace($answer)) { return $Default }
+        if ($answer.Trim().TrimEnd(':').Length -gt 1) { return $answer.Trim() }
+        Write-CdInfo -Text (Get-CdText 'manage.labelTooShort') -Color Yellow
     }
 }
 
@@ -271,10 +299,10 @@ function Start-CdVaultWizard {
     }
     if ([string]::IsNullOrEmpty($password) -or [string]::IsNullOrEmpty($salt)) { return $null }
 
-    $label = Read-CdText -Prompt (Get-CdText 'vault.labelPrompt') -Default (Get-CdText 'vault.defaultLabel' $Account.label)
     Write-CdStep -Text (Get-CdText 'vault.letterStep')
     try {
         $letter = Read-CdDriveLetter -Preferred $script:CdVaultPreferredLetters
+        $label = Read-CdDriveName -Default (Get-CdText 'vault.defaultLabel' $Account.label)
         Write-CdInfo -Text (Get-CdText 'vault.creating') -Color DarkGray
         $result = Add-CdVaultDrive -AccountId $Account.id -Folder $folder -Letter $letter -Label $label -Password $password -Salt $salt
     }
@@ -307,8 +335,11 @@ function Show-CdRecoveryKit {
         Write-CdInfo -Text ('[2] ' + (Get-CdText 'vault.kit.saveFile'))
         $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2')
         if ($choice -eq '2') {
-            $path = Read-CdText -Prompt (Get-CdText 'vault.kit.pathPrompt') -Default (Get-CdRecoveryKitDefaultPath -Drive $Drive)
+            $default = Get-CdRecoveryKitDefaultPath -Drive $Drive
+            $path = Read-CdText -Prompt (Get-CdText 'vault.kit.pathPrompt') -Default $default
             if (-not $path) { continue }
+            # A bare file name would otherwise land in the program folder.
+            if (-not [IO.Path]::IsPathRooted($path)) { $path = Join-Path (Split-Path -Parent $default) $path }
             if ((Test-CdPathInCloudFolder -Path $path) -and -not (Read-CdYesNo -Prompt (Get-CdText 'vault.kit.cloudWarning') -Default $false)) { continue }
             try { Write-CdOk -Text (Get-CdText 'vault.kit.saved' (Save-CdRecoveryKit -Path $path -Text $text)) }
             catch {
@@ -362,11 +393,11 @@ function Start-CdAddDriveWizard {
             $folder = ([string]$folder).Trim().Replace('\', '/').Trim('/')
             $defaultLabel = $account.label
             if ($folder) { $defaultLabel = '{0} - {1}' -f $account.label, ($folder -split '/')[-1] }
-            $label = Read-CdText -Prompt (Get-CdText 'manage.labelPrompt') -Default $defaultLabel
             Write-CdStep -Text (Get-CdText 'wizard.add.letterStep')
             try {
                 $provider = Get-CdProvider -Id $account.provider
                 $letter = Read-CdDriveLetter -Preferred $provider.PreferredLetters
+                $label = Read-CdDriveName -Default $defaultLabel
                 $drive = New-CdDrive -AccountId $account.id -Letter $letter -Label $label -Path $folder
             }
             catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
@@ -409,6 +440,75 @@ function Start-CdRemoveDriveWizard {
     Wait-CdKeyPress
 }
 
+function Select-CdDriveUi {
+    # Lets the user pick one of the configured drives; returns it or $null.
+    param([Parameter(Mandatory)][string]$PromptKey)
+    $drives = @((Get-CdSettings).drives)
+    if ($drives.Count -eq 0) {
+        Write-CdInfo -Text (Get-CdText 'status.noDrives')
+        return $null
+    }
+    Write-CdStep -Text (Get-CdText $PromptKey)
+    $valid = New-Object System.Collections.Generic.List[string]
+    for ($i = 0; $i -lt $drives.Count; $i++) {
+        $tag = ''
+        if ($drives[$i].encrypted) { $tag = ' ' + (Get-CdText 'status.encryptedTag') }
+        Write-CdInfo -Text ('[{0}] {1}:  {2}{3}' -f ($i + 1), $drives[$i].letter, $drives[$i].label, $tag)
+        $valid.Add([string]($i + 1))
+    }
+    Write-CdInfo -Text ('[0] ' + (Get-CdText 'ui.cancel'))
+    $valid.Add('0')
+    $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid $valid.ToArray()
+    if ($choice -eq '0') { return $null }
+    $drives[[int]$choice - 1]
+}
+
+function Start-CdRenameDriveWizard {
+    Clear-CdScreen
+    Write-CdHeader -Subtitle (Get-CdText 'manage.rename')
+    $drive = Select-CdDriveUi -PromptKey 'manage.chooseDriveRename'
+    if ($drive) {
+        $label = Read-CdDriveName -Default $drive.label
+        try { Write-CdResult -Result (Rename-CdDrive -Id $drive.id -Label $label) }
+        catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+    }
+    Wait-CdKeyPress
+}
+
+function Start-CdSettingsMenu {
+    while ($true) {
+        Clear-CdScreen
+        Write-CdHeader -Subtitle (Get-CdText 'settings.title')
+        $settings = Get-CdSettings
+        $autostart = Get-CdAutostart
+        $autostartText = Get-CdText 'settings.off'
+        if ($autostart.Enabled) { $autostartText = Get-CdText 'settings.on' }
+        Write-CdInfo -Text ('[1] ' + (Get-CdText 'settings.autostart' $autostartText)) -Color White
+        Write-CdInfo -Text ('[2] ' + (Get-CdText 'settings.notifications' (Get-CdText "settings.notifications.$($settings.notifications)"))) -Color White
+        Write-CdInfo -Text ('[0] ' + (Get-CdText 'manage.back')) -Color White
+        switch (Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '0')) {
+            '1' {
+                try {
+                    if ($autostart.Enabled) { Write-CdResult -Result (Disable-CdAutostart) }
+                    else { Write-CdResult -Result (Enable-CdAutostart) }
+                    $settings.autostartAsked = $true
+                    Save-CdSettings -Settings $settings
+                }
+                catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+                Wait-CdKeyPress
+            }
+            '2' {
+                $order = @('errors', 'all', 'off')
+                $next = $order[([array]::IndexOf($order, [string]$settings.notifications) + 1) % $order.Count]
+                $settings.notifications = $next
+                Save-CdSettings -Settings $settings
+                if ($next -ne 'off') { [void](Show-CdNotification -Title 'CloudDrives' -Message (Get-CdText 'settings.notificationTest')) }
+            }
+            '0' { return }
+        }
+    }
+}
+
 function Start-CdManageDrivesMenu {
     while ($true) {
         Clear-CdScreen
@@ -425,11 +525,13 @@ function Start-CdManageDrivesMenu {
         }
         Write-Host ''
         Write-CdInfo -Text ('[1] ' + (Get-CdText 'manage.add')) -Color White
-        Write-CdInfo -Text ('[2] ' + (Get-CdText 'manage.remove')) -Color White
+        Write-CdInfo -Text ('[2] ' + (Get-CdText 'manage.rename')) -Color White
+        Write-CdInfo -Text ('[3] ' + (Get-CdText 'manage.remove')) -Color White
         Write-CdInfo -Text ('[0] ' + (Get-CdText 'manage.back')) -Color White
-        switch (Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '0')) {
+        switch (Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '0')) {
             '1' { Start-CdAddDriveWizard }
-            '2' { Start-CdRemoveDriveWizard }
+            '2' { Start-CdRenameDriveWizard }
+            '3' { Start-CdRemoveDriveWizard }
             '0' { return }
         }
     }

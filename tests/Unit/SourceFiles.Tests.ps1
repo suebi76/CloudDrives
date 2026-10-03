@@ -28,8 +28,15 @@ Describe 'Source files' {
 
 Describe 'Repository hygiene' {
     BeforeAll {
-        $script:Files = Get-ChildItem -LiteralPath $script:RepoRoot -Recurse -File -Force |
-            Where-Object { $_.FullName -notmatch '\\(\.git|\.claude|\.vscode|TestResults)\\' }
+        # Everything git would commit: tracked files plus new files that are not ignored.
+        $list = & git -C $script:RepoRoot -c core.quotepath=off ls-files --cached --others --exclude-standard 2>$null
+        if ($LASTEXITCODE -eq 0 -and $list) {
+            $script:Files = @($list | ForEach-Object { Get-Item -LiteralPath (Join-Path $script:RepoRoot $_) -Force -ErrorAction SilentlyContinue } | Where-Object { $_ })
+        }
+        else {
+            $script:Files = Get-ChildItem -LiteralPath $script:RepoRoot -Recurse -File -Force |
+                Where-Object { $_.FullName -notmatch '\\(\.git|\.claude|\.vscode|TestResults)\\' }
+        }
     }
 
     It 'contains no runtime data or secrets files' {

@@ -48,12 +48,13 @@ function Get-CdVaultFolderState {
     # 'new' when the vault folder is missing or empty, otherwise 'existing'.
     param([Parameter(Mandatory)][string]$AccountId, [Parameter(Mandatory)][string]$Folder)
     try {
-        $list = Invoke-CdRc -Command 'operations/list' -Body ([ordered]@{ fs = "$(Get-CdAccountRemoteName -AccountId $AccountId):"; remote = $Folder }) -TimeoutSec 120
+        $body = [ordered]@{ fs = "$(Get-CdAccountRemoteName -AccountId $AccountId):"; remote = $Folder }
+        $list = Invoke-CdRc -Command 'operations/list' -Body $body -TimeoutSec 120 -ExpectedCodes @('CD-4007')
         if (@($list.list | Where-Object { $_ }).Count -gt 0) { return 'existing' }
         return 'new'
     }
     catch {
-        if ((Get-CdErrorDetail $_) -match '(?i)directory not found|not found') { return 'new' }
+        if ((Get-CdErrorCode $_) -eq 'CD-4007') { return 'new' }
         throw
     }
 }

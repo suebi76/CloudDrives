@@ -61,6 +61,7 @@ function Invoke-CdCommandLineConnect {
         })
     $failed = @($results | Where-Object { -not $_.Success })
     foreach ($item in $failed) { Write-CdLog -Level WARN -Component 'Cli' -Message "connect: $($item.Code) $($item.Message)" }
+    if ($silent) { Send-CdConnectSummary -Results $results }
     if ($failed.Count -eq 0) { return 0 }
     if ($failed.Count -lt $results.Count) { return 1 }
     2
@@ -72,6 +73,22 @@ function Invoke-CdCommandLineDisconnect {
     $results = @(Invoke-CdDisconnect -Selection $Parsed.Targets -Force:$force -OnResult { param($Result) Write-CdResult -Result $Result })
     if (@($results | Where-Object { -not $_.Success }).Count -gt 0) { return 1 }
     0
+}
+
+function Invoke-CdCommandLineAutostart {
+    param([pscustomobject]$Parsed)
+    $mode = 'status'
+    if ($Parsed.Targets.Count -gt 0) { $mode = $Parsed.Targets[0].ToLowerInvariant() }
+    switch ($mode) {
+        { @('on', 'an', 'ein') -contains $_ } { Write-CdResult -Result (Enable-CdAutostart); return 0 }
+        { @('off', 'aus') -contains $_ } { Write-CdResult -Result (Disable-CdAutostart); return 0 }
+        default {
+            $state = Get-CdAutostart
+            if ($state.Enabled) { Write-CdInfo -Text (Get-CdText 'autostart.statusOn' $state.Detail) }
+            else { Write-CdInfo -Text (Get-CdText 'autostart.statusOff') }
+            return 0
+        }
+    }
 }
 
 function Invoke-CdCommandLineStatus {
@@ -106,7 +123,9 @@ function Invoke-CdCli {
     param([AllowEmptyCollection()][string[]]$Arguments = @())
     $parsed = ConvertFrom-CdCliArguments -Arguments $Arguments
     $silent = [bool]$parsed.Flags['silent']
-    [void](Initialize-CdContext -Silent:$silent)
+    $homePath = $null
+    if ($parsed.Flags['home'] -is [string]) { $homePath = $parsed.Flags['home'] }
+    [void](Initialize-CdContext -HomePath $homePath -Silent:$silent)
     $exitCode = 0
     try {
         Initialize-CdHome
@@ -131,6 +150,7 @@ function Invoke-CdCli {
             'connect' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineConnect -Parsed $parsed) }
             'disconnect' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineDisconnect -Parsed $parsed) }
             'status' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineStatus -Parsed $parsed) }
+            'autostart' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineAutostart -Parsed $parsed) }
             'add-account' { $null = Start-CdAddAccountWizard }
             'remove-account' { $null = Start-CdRemoveAccountWizard }
             'setup' {

@@ -14,6 +14,7 @@
     { "code": "CD-3008", "action": "reconnect-account", "patterns": ["(?i)couldn't fetch token", "(?i)oauth2: cannot fetch token", "(?i)failed to get token", "(?i)couldn't get token"] },
     { "code": "CD-4001", "action": "choose-letter", "patterns": ["(?i)mountpoint path already exists", "(?i)drive letter.{0,40}(in use|already)", "(?i)mount ?point.{0,30}(in use|already mounted)"] },
     { "code": "CD-4005", "action": "choose-letter", "patterns": ["(?i)could not find unused drive letter"] },
+    { "code": "CD-4007", "action": null, "patterns": ["(?i)directory not found"] },
     { "code": "CD-6001", "action": "vault-password", "patterns": ["(?i)not an encrypted file", "(?i)failed to authenticate decrypted block", "(?i)encrypted file has bad magic", "(?i)failed to decrypt filename", "(?i)illegal base32 data"] },
     { "code": "CD-7001", "action": "cache-settings", "patterns": ["(?i)no space left on device", "(?i)not enough space on the disk", "(?i)\"outOfSpace\"\\s*:\\s*true"] },
     { "code": "CD-4004", "action": null, "patterns": ["(?i)failed to unmount", "(?i)unmount failed"] },

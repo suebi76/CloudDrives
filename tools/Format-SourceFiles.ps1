@@ -22,8 +22,19 @@ $rules = @(
 )
 $excluded = '\\(\.git|\.claude|\.vscode|TestResults|build|out)\\'
 
+# Only files that belong to the repository (tracked or not ignored) - never local files such as
+# downloaded client secrets or recovery kits that happen to lie in the working folder.
+$files = $null
+if (Get-Command -Name 'git' -ErrorAction SilentlyContinue) {
+    $list = & git -C $root -c core.quotepath=off ls-files --cached --others --exclude-standard 2>$null
+    if ($LASTEXITCODE -eq 0 -and $list) {
+        $files = @($list | ForEach-Object { Get-Item -LiteralPath (Join-Path $root $_) -Force -ErrorAction SilentlyContinue } | Where-Object { $_ })
+    }
+}
+if (-not $files) { $files = Get-ChildItem -LiteralPath $root -Recurse -File -Force }
+
 $problems = New-Object System.Collections.Generic.List[string]
-foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File -Force) {
+foreach ($file in $files) {
     if ($file.FullName -match $excluded) { continue }
     $rule = $rules | Where-Object { $file.Name -match $_.Pattern } | Select-Object -First 1
     if (-not $rule) { continue }

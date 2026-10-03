@@ -40,6 +40,8 @@
 settings.json
 settings.json.*
 recovery-kit*
+CloudDrives-Recovery*
+client_secret*.json
 TestResults/
 testResults*.xml
 coverage*.xml

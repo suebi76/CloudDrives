@@ -216,6 +216,20 @@ function Remove-CdDrive {
     New-CdResult -Message (Get-CdText 'drive.removed' $drive.label, "$($drive.letter):") -Data $drive
 }
 
+function Rename-CdDrive {
+    # Changes the name shown in Explorer; the drive id (and with it any vault key) stays the same.
+    param([Parameter(Mandatory)][string]$Id, [Parameter(Mandatory)][string]$Label)
+    $drive = Get-CdDrive -Id $Id
+    if (-not $drive) { throw (New-CdException -Code 'CD-2006' -Detail "unknown drive '$Id'") }
+    $Label = $Label.Trim()
+    if (-not $Label) { throw (New-CdException -Code 'CD-2001' -Detail 'empty drive name') }
+    $drive.label = $Label
+    Save-CdSettings -Settings (Get-CdSettings)
+    Set-CdDriveLabel -Drive $drive
+    Write-CdLog -Component 'Drives' -Message "Drive '$($drive.id)' renamed."
+    New-CdResult -Message (Get-CdText 'drive.renamed' "$($drive.letter):", $Label) -Data $drive
+}
+
 function Get-CdDriveStatusList {
     param([switch]$IncludeQuota)
     $settings = Get-CdSettings

@@ -22,7 +22,9 @@ function Invoke-CdRc {
         [Parameter(Mandatory, Position = 0)][string]$Command,
         [Parameter(Position = 1)][System.Collections.IDictionary]$Body = @{},
         [int]$TimeoutSec = 60,
-        [object]$Connection
+        [object]$Connection,
+        # Error codes the caller expects and handles itself; they are logged as DEBUG instead of WARN.
+        [string[]]$ExpectedCodes = @()
     )
     if (-not $Connection) { $Connection = Get-CdEngineConnection }
     if (-not $Connection) { throw (New-CdException -Code 'CD-5003' -Detail 'engine is not running') }
@@ -51,7 +53,9 @@ function Invoke-CdRc {
         try { $parsed = $text | ConvertFrom-Json; if ($parsed.error) { $errorText = [string]$parsed.error } } catch { $errorText = $text }
         if ([int]$response.StatusCode -eq 401) { throw (New-CdException -Code 'CD-5003' -Detail "$Command : unauthorized") }
         $code = Resolve-CdErrorCode -Text $errorText
-        Write-CdLog -Level WARN -Component 'Rc' -Message "$Command failed ($code): $errorText"
+        $level = 'WARN'
+        if ($ExpectedCodes -contains $code) { $level = 'DEBUG' }
+        Write-CdLog -Level $level -Component 'Rc' -Message "$Command failed ($code): $errorText"
         throw (New-CdException -Code $code -Detail $errorText)
     }
     finally {

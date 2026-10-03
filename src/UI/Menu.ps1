@@ -51,6 +51,13 @@ function Start-CdConsoleMenu {
         Write-CdInfo -Text (Get-CdText 'menu.welcome')
         if (Read-CdYesNo -Prompt (Get-CdText 'menu.welcomeAddAccount') -Default $true) { Start-CdAddAccountWizard }
     }
+    elseif (-not (Get-CdSettings).autostartAsked -and -not (Get-CdAutostart).Enabled) {
+        # Setups created before the autostart existed are asked once, too.
+        Clear-CdScreen
+        Write-CdHeader
+        try { Request-CdAutostart } catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+        Wait-CdKeyPress
+    }
 
     while ($true) {
         Clear-CdScreen
@@ -68,14 +75,15 @@ function Start-CdConsoleMenu {
         $menu = @(
             @('1', 'menu.connectAll', '2', 'menu.disconnectAll'),
             @('3', 'menu.addAccount', '4', 'menu.removeAccount'),
-            @('5', 'menu.manageDrives', '6', 'menu.openLogs'),
-            @('7', 'menu.refresh', '0', 'menu.exit')
+            @('5', 'menu.manageDrives', '6', 'menu.settings'),
+            @('7', 'menu.openLogs', '8', 'menu.refresh')
         )
         foreach ($row in $menu) {
             $left = ('[{0}] {1}' -f $row[0], (Get-CdText $row[1])).PadRight(28)
             Write-CdInfo -Text ($left + ('[{0}] {1}' -f $row[2], (Get-CdText $row[3]))) -Color White
         }
-        $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '4', '5', '6', '7', '0')
+        Write-CdInfo -Text ('[0] ' + (Get-CdText 'menu.exit')) -Color White
+        $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '4', '5', '6', '7', '8', '0')
         try {
             switch ($choice) {
                 '1' { Invoke-CdConnectUi }
@@ -83,8 +91,9 @@ function Start-CdConsoleMenu {
                 '3' { Start-CdAddAccountWizard }
                 '4' { Start-CdRemoveAccountWizard }
                 '5' { Start-CdManageDrivesMenu }
-                '6' { Start-Process -FilePath 'explorer.exe' -ArgumentList @((Get-CdContext).LogDir) }
-                '7' { $script:CdQuotaCache = @{} }
+                '6' { Start-CdSettingsMenu }
+                '7' { Start-Process -FilePath 'explorer.exe' -ArgumentList @((Get-CdContext).LogDir) }
+                '8' { $script:CdQuotaCache = @{} }
                 '0' { return 0 }
             }
         }
