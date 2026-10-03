@@ -1,0 +1,44 @@
+# CloudDrives uses an ALLOWLIST: everything is ignored unless it is explicitly listed below.
+# This guards against accidentally committing secrets, tokens, logs or caches.
+# Runtime data (tokens, settings, cache, logs) lives in %LOCALAPPDATA%\CloudDrives - never in this folder.
+
+/*
+!/.github/
+!/docs/
+!/src/
+!/tests/
+!/tools/
+!/.editorconfig
+!/.gitattributes
+!/.gitignore
+!/.gitleaks.toml
+!/CHANGELOG.md
+!/CloudDrives.bat
+!/CONTRIBUTING.md
+!/install.ps1
+!/LICENSE
+!/PSScriptAnalyzerSettings.psd1
+!/README.md
+!/SECURITY.md
+
+# Never commit these - not even inside allowed folders.
+*.conf
+*.conf.*
+*.log
+*.log.*
+*.dpapi
+*.pfx
+*.pem
+*.key
+*.token
+*.secret
+*.zip
+*.msi
+*.exe
+*.dll
+settings.json
+settings.json.*
+recovery-kit*
+TestResults/
+testResults*.xml
+coverage*.xml

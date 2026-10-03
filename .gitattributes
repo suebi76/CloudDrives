@@ -1,0 +1,21 @@
+# Normalise line endings in the repository; Windows scripts are checked out with CRLF.
+* text=auto
+
+# Batch files MUST use CRLF, otherwise cmd.exe can mis-parse labels and blocks.
+*.bat  text eol=crlf
+*.cmd  text eol=crlf
+
+# PowerShell sources (UTF-8 with BOM, enforced by tests) and C# helper code.
+*.ps1  text eol=crlf
+*.psm1 text eol=crlf
+*.psd1 text eol=crlf
+*.cs   text eol=crlf
+
+*.json text eol=crlf
+*.md   text eol=crlf
+*.toml text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+
+*.ico  binary
+*.png  binary

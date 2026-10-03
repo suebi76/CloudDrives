@@ -1,0 +1,191 @@
+﻿# Console rendering and input helpers. This layer is the only place that talks to the user.
+
+$script:CdRuleChar = [char]0x2500
+$script:CdDotOn = [string][char]0x25CF
+$script:CdDotOff = [string][char]0x25CB
+$script:CdCheck = [string][char]0x2713
+$script:CdCross = [string][char]0x2717
+
+function Initialize-CdConsole {
+    try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { Write-CdLog -Level DEBUG -Component 'UI' -Message 'Console encoding could not be set.' }
+    try { $Host.UI.RawUI.WindowTitle = 'CloudDrives' } catch { Write-CdLog -Level DEBUG -Component 'UI' -Message 'Window title could not be set.' }
+}
+
+function Test-CdSingleKeyInput {
+    try { return ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsInputRedirected) } catch { return $false }
+}
+
+function Write-CdRule {
+    Write-Host ('  ' + [string]::new($script:CdRuleChar, 66)) -ForegroundColor DarkGray
+}
+
+function Write-CdHeader {
+    param([string]$Subtitle)
+    Write-Host ''
+    Write-Host ('  CloudDrives ' + (Get-CdContext).Version) -ForegroundColor Cyan -NoNewline
+    if ($Subtitle) { Write-Host ('   ' + $Subtitle) -ForegroundColor Gray }
+    else { Write-Host '' }
+    Write-CdRule
+}
+
+function Write-CdInfo {
+    param([string]$Text, [ConsoleColor]$Color = [ConsoleColor]::Gray)
+    foreach ($line in ($Text -split "`n")) { Write-Host ('  ' + $line.TrimEnd("`r")) -ForegroundColor $Color }
+}
+
+function Write-CdStep {
+    param([string]$Text)
+    Write-Host ''
+    Write-Host ('  ' + $Text) -ForegroundColor White
+}
+
+function Write-CdOk {
+    param([string]$Text)
+    Write-Host ('  ' + $script:CdCheck + ' ') -ForegroundColor Green -NoNewline
+    Write-Host $Text
+}
+
+function Write-CdFail {
+    param([string]$Text)
+    Write-Host ('  ' + $script:CdCross + ' ') -ForegroundColor Red -NoNewline
+    Write-Host $Text
+}
+
+function Format-CdShort {
+    param([AllowNull()][string]$Text, [int]$Length)
+    if ($null -eq $Text) { $Text = '' }
+    if ($Text.Length -le $Length) { return $Text.PadRight($Length) }
+    $Text.Substring(0, $Length - 1) + [char]0x2026
+}
+
+function Write-CdErrorInfo {
+    param([Parameter(Mandatory)][object]$Info)
+    Write-Host ''
+    Write-Host ('  ' + $Info.Code + '  ' + $Info.Title) -ForegroundColor Red
+    if ($Info.Fix -and -not $Info.Fix.StartsWith('[')) { Write-CdInfo -Text $Info.Fix -Color Yellow }
+    if ($Info.Detail) { Write-CdInfo -Text ((Get-CdText 'ui.detail') + ': ' + (Format-CdShort -Text $Info.Detail -Length 400).TrimEnd()) -Color DarkGray }
+}
+
+function Write-CdResult {
+    # Renders one command result (success with a check mark, failure with code and hint).
+    param([Parameter(Mandatory)][object]$Result)
+    if ($Result.Success) { Write-CdOk -Text $Result.Message; return }
+    Write-CdFail -Text $Result.Message
+    if ($Result.Code -and $Result.Code -ne 'CD-4006') {
+        $title = Get-CdText "error.$($Result.Code).title"
+        $fix = Get-CdText "error.$($Result.Code).fix"
+        Write-Host ('      ' + $Result.Code + ': ' + $title) -ForegroundColor Red
+        if (-not $fix.StartsWith('[')) { Write-Host ('      ' + $fix) -ForegroundColor Yellow }
+    }
+}
+
+function Write-CdStatusTable {
+    param([object[]]$StatusList)
+    if (-not $StatusList -or $StatusList.Count -eq 0) {
+        Write-CdInfo -Text (Get-CdText 'status.noDrives')
+        return
+    }
+    foreach ($status in $StatusList) {
+        $dot = $script:CdDotOff
+        $color = [ConsoleColor]::DarkGray
+        $stateText = Get-CdText 'status.disconnected'
+        if ($status.Mounted) {
+            $dot = $script:CdDotOn
+            $color = [ConsoleColor]::Green
+            $stateText = Get-CdText 'status.connected'
+        }
+        $name = $status.Drive.label
+        if ($status.Drive.encrypted) { $name = $name + ' ' + (Get-CdText 'status.encryptedTag') }
+        Write-Host ('  ' + $dot + ' ') -ForegroundColor $color -NoNewline
+        Write-Host (($status.MountPoint.PadRight(4)) + (Format-CdShort -Text $name -Length 28) + ' ') -NoNewline
+        Write-Host ($stateText.PadRight(12)) -ForegroundColor $color -NoNewline
+        $extra = ''
+        if ($status.Quota -and $null -ne $status.Quota.used) {
+            if ($status.Quota.total) { $extra = Get-CdText 'status.quota' (Format-CdSize $status.Quota.used), (Format-CdSize $status.Quota.total) }
+            else { $extra = Get-CdText 'status.quotaUsed' (Format-CdSize $status.Quota.used) }
+        }
+        Write-Host $extra -NoNewline -ForegroundColor Gray
+        if ($status.PendingUploads -gt 0) { Write-Host ('  ' + (Get-CdText 'status.pending' $status.PendingUploads)) -ForegroundColor Yellow -NoNewline }
+        Write-Host ''
+    }
+}
+
+function Read-CdChoice {
+    # Single-key choice in a real console, line input elsewhere. Esc maps to "0" when "0" is valid.
+    param(
+        [Parameter(Mandatory)][string]$Prompt,
+        [Parameter(Mandatory)][string[]]$Valid,
+        [string]$Default
+    )
+    while ($true) {
+        Write-Host ''
+        Write-Host ('  ' + $Prompt + ' ') -ForegroundColor White -NoNewline
+        $answer = ''
+        if (Test-CdSingleKeyInput) {
+            $key = [Console]::ReadKey($true)
+            if ($key.Key -eq [ConsoleKey]::Escape) { $answer = 'ESC' }
+            elseif ($key.Key -eq [ConsoleKey]::Enter) { $answer = $Default }
+            else { $answer = [string]$key.KeyChar }
+            Write-Host $answer
+        }
+        else {
+            $answer = Read-Host
+            if ([string]::IsNullOrWhiteSpace($answer)) { $answer = $Default }
+        }
+        if ($answer -eq 'ESC' -and $Valid -contains '0') { return '0' }
+        foreach ($option in $Valid) { if ($answer -and $option -ieq $answer.Trim()) { return $option } }
+        Write-Host ('  ' + (Get-CdText 'ui.invalidChoice')) -ForegroundColor Yellow
+    }
+}
+
+function Read-CdText {
+    param([Parameter(Mandatory)][string]$Prompt, [string]$Default)
+    Write-Host ''
+    Write-Host ('  ' + $Prompt) -ForegroundColor White -NoNewline
+    if ($Default) { Write-Host (' [' + $Default + ']') -ForegroundColor DarkGray -NoNewline }
+    Write-Host ': ' -NoNewline
+    $answer = Read-Host
+    if ([string]::IsNullOrWhiteSpace($answer)) { return $Default }
+    $answer.Trim()
+}
+
+function Read-CdSecretText {
+    param([Parameter(Mandatory)][string]$Prompt)
+    Write-Host ''
+    Write-Host ('  ' + $Prompt + ': ') -ForegroundColor White -NoNewline
+    $secure = Read-Host -AsSecureString
+    (New-Object System.Management.Automation.PSCredential('clouddrives', $secure)).GetNetworkCredential().Password
+}
+
+function Read-CdYesNo {
+    param([Parameter(Mandatory)][string]$Prompt, [bool]$Default = $true)
+    $yes = Get-CdText 'ui.yesKey'
+    $no = Get-CdText 'ui.noKey'
+    $hint = "$($yes.ToUpper())/$no"
+    $defaultKey = $yes
+    if (-not $Default) { $hint = "$yes/$($no.ToUpper())"; $defaultKey = $no }
+    $answer = Read-CdChoice -Prompt "$Prompt ($hint)" -Valid @($yes, $no, '0') -Default $defaultKey
+    $answer -ieq $yes
+}
+
+function Wait-CdKeyPress {
+    Write-Host ''
+    Write-Host ('  ' + (Get-CdText 'ui.pressAnyKey')) -ForegroundColor DarkGray -NoNewline
+    if (Test-CdSingleKeyInput) { [void][Console]::ReadKey($true) } else { [void](Read-Host) }
+    Write-Host ''
+}
+
+function Test-CdEscapePressed {
+    if (-not (Test-CdSingleKeyInput)) { return $false }
+    try {
+        while ([Console]::KeyAvailable) {
+            if ([Console]::ReadKey($true).Key -eq [ConsoleKey]::Escape) { return $true }
+        }
+    }
+    catch { return $false }
+    $false
+}
+
+function Clear-CdScreen {
+    try { Clear-Host } catch { Write-Host '' }
+}
