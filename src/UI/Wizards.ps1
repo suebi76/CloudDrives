@@ -83,15 +83,48 @@ function Start-CdAddAccountWizard {
     $clientId = $null
     $clientSecret = $null
     if ($provider -eq 'drive') {
+        # rclone's shared Google client ID is being retired during 2026, so an own client ID is the default.
         Write-CdStep -Text (Get-CdText 'wizard.add.clientQuestion')
-        Write-CdInfo -Text ('[1] ' + (Get-CdText 'wizard.add.client.default'))
-        Write-CdInfo -Text ('[2] ' + (Get-CdText 'wizard.add.client.own'))
+        Write-CdInfo -Text (Get-CdText 'wizard.add.client.explain') -Color DarkGray
+        Write-CdInfo -Text ('[1] ' + (Get-CdText 'wizard.add.client.own'))
+        Write-CdInfo -Text ('[2] ' + (Get-CdText 'wizard.add.client.default'))
+        Write-CdInfo -Text ('[0] ' + (Get-CdText 'ui.cancel'))
         $clientChoice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '0') -Default '1'
         if ($clientChoice -eq '0') { return }
-        if ($clientChoice -eq '2') {
-            Write-CdInfo -Text (Get-CdText 'wizard.add.client.ownHint' (Join-Path (Get-CdContext).AppRoot 'docs\GOOGLE-OAUTH.md')) -Color DarkGray
-            $clientId = Read-CdText -Prompt (Get-CdText 'wizard.add.client.idPrompt')
-            if ($clientId) { $clientSecret = Read-CdSecretText -Prompt (Get-CdText 'wizard.add.client.secretPrompt') }
+        if ($clientChoice -eq '1') {
+            # 1) reuse the client of another Google account, 2) take the downloaded client file, 3) ask.
+            try {
+                [void](Start-CdEngine)
+                foreach ($known in @(Get-CdOwnGoogleClients)) {
+                    if ($clientId) { break }
+                    Write-CdInfo -Text (Get-CdText 'wizard.add.client.reuseFound' $known.AccountLabel, $known.ClientId)
+                    if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.client.reuse') -Default $true) { $clientId = $known.ClientId; $clientSecret = $known.ClientSecret }
+                }
+            }
+            catch { Write-CdLog -Level WARN -Component 'Wizard' -Message "Existing clients unavailable: $($_.Exception.Message)" }
+            $clientFile = $null
+            if (-not $clientId) {
+                $clientFile = Find-CdGoogleClientFile
+                if ($clientFile) {
+                    Write-CdInfo -Text (Get-CdText 'wizard.add.client.fileFound' (Split-Path -Leaf $clientFile.Path), $clientFile.ClientId)
+                    if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.client.fileUse') -Default $true) { $clientId = $clientFile.ClientId; $clientSecret = $clientFile.ClientSecret }
+                    else { $clientFile = $null }
+                }
+            }
+            if (-not $clientId) {
+                Write-CdInfo -Text (Get-CdText 'wizard.add.client.ownHint' (Join-Path (Get-CdContext).AppRoot 'docs\GOOGLE-OAUTH.md')) -Color DarkGray
+                if ($kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.client.workspaceHint') -Color DarkGray }
+            }
+            while (-not $clientId) {
+                $answer = Read-CdText -Prompt (Get-CdText 'wizard.add.client.idPrompt')
+                if (-not $answer) { return }
+                if (Test-CdGoogleClientId -ClientId $answer) { $clientId = $answer.Trim() }
+                else { Write-CdInfo -Text (Get-CdText 'wizard.add.client.idInvalid') -Color Yellow }
+            }
+            while (-not $clientSecret) { $clientSecret = Read-CdSecretText -Prompt (Get-CdText 'wizard.add.client.secretPrompt') }
+        }
+        else {
+            Write-CdInfo -Text (Get-CdText 'wizard.add.client.sharedWarning') -Color Yellow
         }
     }
 
@@ -117,6 +150,14 @@ function Start-CdAddAccountWizard {
     $about = $result.Data.About
     Write-Host ''
     Write-CdOk -Text $result.Message
+    if ($clientFile -and (Test-Path -LiteralPath $clientFile.Path)) {
+        # The downloaded file holds the client secret in plain text; CloudDrives keeps it encrypted now.
+        Write-CdInfo -Text (Get-CdText 'wizard.add.client.fileDeleteHint' (Split-Path -Leaf $clientFile.Path)) -Color DarkGray
+        if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.client.fileDelete') -Default $true) {
+            Remove-Item -LiteralPath $clientFile.Path -Force
+            Write-CdOk -Text (Get-CdText 'wizard.add.client.fileDeleted')
+        }
+    }
     if ($about -and $null -ne $about.used) {
         if ($about.total) { Write-CdInfo -Text (Get-CdText 'wizard.add.quota' (Format-CdSize $about.used), (Format-CdSize $about.total)) }
         else { Write-CdInfo -Text (Get-CdText 'wizard.add.quotaUsed' (Format-CdSize $about.used)) }

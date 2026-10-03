@@ -55,10 +55,11 @@ Später folgt die Installation per Einzeiler.
   den Tests und GitHub Push Protection.
 - **Grenze:** Schadsoftware, die unter deinem eigenen Windows-Konto läuft, kann keine lokale Lösung zuverlässig abwehren.
 
-## Google: eigene Client-ID (empfohlen)
+## Google: eigene Client-ID (erforderlich)
 
-Mit der Standard-Kennung von rclone bremst Google bei viel Nutzung. Die Anleitung für eine eigene, kostenlose Client-ID
-steht in [docs/GOOGLE-OAUTH.md](docs/GOOGLE-OAUTH.md).
+rclone stellt seine gemeinsame Google-Client-ID im Laufe von 2026 ein, und Google drosselt sie schon jetzt stark.
+Für Google-Konten brauchst du deshalb eine eigene, kostenlose Client-ID. Die Anleitung steht in
+[docs/GOOGLE-OAUTH.md](docs/GOOGLE-OAUTH.md).
 
 ## Entwicklung
 

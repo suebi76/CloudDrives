@@ -70,13 +70,48 @@ function Remove-CdRemoteIfPresent {
 
 function Get-CdRemoteAbout {
     # Storage usage of a remote (total/used/free in bytes; total may be missing for unlimited storage).
-    param([Parameter(Mandatory)][string]$RemoteName, [int]$CacheSec = 300)
+    param([Parameter(Mandatory)][string]$RemoteName, [int]$CacheSec = 300, [int]$TimeoutSec = 60)
     $now = Get-Date
     $cached = $script:CdQuotaCache[$RemoteName]
-    if ($cached -and ($now - $cached.Time).TotalSeconds -lt $CacheSec) { return $cached.Value }
-    $about = Invoke-CdRc -Command 'operations/about' -Body @{ fs = "${RemoteName}:" } -TimeoutSec 60
+    if ($cached -and $null -ne $cached.Value -and ($now - $cached.Time).TotalSeconds -lt $CacheSec) { return $cached.Value }
+    $about = Invoke-CdRc -Command 'operations/about' -Body @{ fs = "${RemoteName}:" } -TimeoutSec $TimeoutSec
     $script:CdQuotaCache[$RemoteName] = @{ Time = $now; Value = $about }
     $about
+}
+
+function Get-CdAccountQuota {
+    # Quota for status displays: short timeout, and failures are remembered for two minutes so a slow or
+    # throttled provider never blocks the menu.
+    param([Parameter(Mandatory)][string]$AccountId)
+    $remote = Get-CdAccountRemoteName -AccountId $AccountId
+    $cached = $script:CdQuotaCache[$remote]
+    if ($cached) {
+        $age = ((Get-Date) - $cached.Time).TotalSeconds
+        if ($null -ne $cached.Value -and $age -lt 300) { return $cached.Value }
+        if ($null -eq $cached.Value -and $age -lt 120) { return $null }
+    }
+    try { return (Get-CdRemoteAbout -RemoteName $remote -CacheSec 0 -TimeoutSec 10) }
+    catch {
+        Write-CdLog -Level WARN -Component 'Accounts' -Message "Quota of '$AccountId' unavailable: $($_.Exception.Message)"
+        $script:CdQuotaCache[$remote] = @{ Time = Get-Date; Value = $null }
+        return $null
+    }
+}
+
+function Get-CdOwnGoogleClients {
+    # Own client IDs already used by configured Google accounts, so the user sets one up only once.
+    $clients = New-Object System.Collections.Generic.List[object]
+    foreach ($account in @((Get-CdSettings).accounts | Where-Object { $_.provider -eq 'drive' -and $_.clientId -eq 'own' })) {
+        try {
+            $remote = Invoke-CdRc -Command 'config/get' -Body @{ name = (Get-CdAccountRemoteName -AccountId $account.id) }
+            $known = @($clients | Where-Object { $_.ClientId -eq $remote.client_id }).Count -gt 0
+            if ($remote.client_id -and $remote.client_secret -and -not $known) {
+                $clients.Add([pscustomobject]@{ AccountLabel = $account.label; ClientId = [string]$remote.client_id; ClientSecret = [string]$remote.client_secret })
+            }
+        }
+        catch { Write-CdLog -Level WARN -Component 'Accounts' -Message "Client of '$($account.id)' unavailable: $($_.Exception.Message)" }
+    }
+    , $clients.ToArray()
 }
 
 function Add-CdAccount {

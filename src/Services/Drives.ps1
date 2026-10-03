@@ -229,10 +229,7 @@ function Get-CdDriveStatusList {
         if ($isMounted) {
             $pending = Get-CdPendingUploadCount -Fs ([string]$mounted[$mountPoint].Fs)
             if ($IncludeQuota) {
-                if (-not $quotaByAccount.ContainsKey($drive.account)) {
-                    try { $quotaByAccount[$drive.account] = Get-CdRemoteAbout -RemoteName (Get-CdAccountRemoteName -AccountId $drive.account) }
-                    catch { $quotaByAccount[$drive.account] = $null }
-                }
+                if (-not $quotaByAccount.ContainsKey($drive.account)) { $quotaByAccount[$drive.account] = Get-CdAccountQuota -AccountId $drive.account }
                 $quota = $quotaByAccount[$drive.account]
             }
         }

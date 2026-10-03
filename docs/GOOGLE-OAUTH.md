@@ -1,9 +1,14 @@
 # Eigene Google-Client-ID einrichten
 
-CloudDrives kann Google Drive sofort mit der **Standard-Client-ID von rclone** verbinden. Diese Kennung teilen sich
-allerdings alle rclone-Nutzer weltweit, deshalb bremst Google sie regelmäßig: Ordner laden langsam, und es erscheinen Meldungen wie
-*„User Rate Limit Exceeded“* (Fehler **CD-3002**). Mit einer **eigenen Client-ID** hast du ein eigenes Kontingent.
-Die Einrichtung dauert einmalig etwa 10 Minuten und ist kostenlos.
+Für Google Drive brauchst du eine **eigene Client-ID**.
+
+- **Die gemeinsame Client-ID von rclone wird abgeschaltet.** rclone stellt sie laut eigener Dokumentation im Laufe von 2026
+  ein. Eine eigene Client-ID ist deshalb *„required rather than merely recommended“*.
+- **Die gemeinsame Kennung ist gedrosselt.** Alle rclone-Nutzer weltweit teilen sie, deshalb bremst Google sie stark:
+  - Ordner laden langsam.
+  - Speicherabfragen dauern 30 Sekunden und länger.
+  - Es erscheinen Meldungen wie *„User Rate Limit Exceeded“* (Fehler **CD-3002**).
+- **Mit einer eigenen Client-ID** hast du ein eigenes Kontingent. Die Einrichtung dauert einmalig etwa 10 Minuten und ist kostenlos.
 
 > **Sicherheit:** Client-ID und Client-Geheimnis landen ausschließlich in der verschlüsselten `rclone.conf`
 > unter `%LOCALAPPDATA%\CloudDrives`. Trage sie niemals in Dateien des Repositorys ein.
@@ -47,7 +52,7 @@ Ohne diesen Schritt kann die Anmeldung mit **Fehler 400: admin_policy_enforced**
 ## 5. In CloudDrives verwenden
 
 1. `CloudDrives.bat` starten und **Konto hinzufügen** wählen.
-2. **Google Drive** bzw. **Google Workspace** wählen, danach **Eigene Client-ID**.
+2. **Google Drive** bzw. **Google Workspace** wählen, danach **Eigene Client-ID** (Voreinstellung).
 3. Client-ID einfügen und das Client-Geheimnis eingeben. Die Eingabe bleibt unsichtbar.
 4. Im Browser anmelden. Bei einer externen App zeigt Google einmalig **„Google hat diese App nicht überprüft“**.
    Klicke **Erweitert → Zu CloudDrives wechseln**. Das ist unbedenklich, weil es deine eigene App ist.
