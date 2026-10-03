@@ -124,6 +124,7 @@ function Test-CdSettings {
         elseif ($letters.ContainsKey($drive.letter)) { $problems.Add("drive '$($drive.id)': letter $($drive.letter) is used twice") }
         else { $letters[$drive.letter] = $true }
         if ([string]::IsNullOrWhiteSpace($drive.label)) { $problems.Add("drive '$($drive.id)': empty label") }
+        if ($drive.encrypted -and [string]::IsNullOrWhiteSpace($drive.path)) { $problems.Add("vault drive '$($drive.id)': no folder") }
     }
     if (@('dpapi', 'masterPassword') -notcontains $Settings.securityMode) { $problems.Add("invalid securityMode '$($Settings.securityMode)'") }
     , $problems.ToArray()

@@ -34,6 +34,8 @@ function New-CdDrive {
         [string]$Label,
         [string]$Path = '',
         [switch]$Encrypted,
+        [string]$Id,
+        [System.Collections.IDictionary]$Vault,
         [bool]$AutoConnect = $true
     )
     $settings = Get-CdSettings
@@ -42,17 +44,18 @@ function New-CdDrive {
     $Letter = $Letter.Trim().TrimEnd(':').ToUpperInvariant()
     if ((Get-CdFreeDriveLetters) -notcontains $Letter) { throw (New-CdException -Code 'CD-4001' -Detail "${Letter}: is not available") }
     if (-not $Label) { $Label = $account.label }
-    $id = New-CdUniqueId -Text $Label -Existing @($settings.drives | ForEach-Object { $_.id }) -Fallback 'drive'
+    if (-not $Id) { $Id = New-CdUniqueId -Text $Label -Existing @($settings.drives | ForEach-Object { $_.id }) -Fallback 'drive' }
     $drive = [ordered]@{
-        id          = $id
+        id          = $Id
         account     = $AccountId
         label       = $Label
         letter      = $Letter
-        path        = $Path
+        path        = ([string]$Path).Trim('/')
         encrypted   = [bool]$Encrypted
         autoConnect = $AutoConnect
         readOnly    = $false
     }
+    if ($Encrypted) { $drive.vault = $Vault }
     $settings.drives = Add-CdArrayItem -Array $settings.drives -Item $drive
     Save-CdSettings -Settings $settings
     Write-CdLog -Component 'Drives' -Message "Drive '$id' (${Letter}:) added for account '$AccountId'."
@@ -137,6 +140,11 @@ function Mount-CdDrive {
     if ((Get-CdUsedDriveLetters) -contains [string]$Drive.letter) {
         throw (New-CdException -Code 'CD-4001' -Detail "$mountPoint is already in use")
     }
+    if ($Drive.encrypted) {
+        # Never mount a vault with a wrong or missing key - new files would be encrypted with it.
+        if ((Get-CdRemoteNames) -notcontains (Get-CdVaultRemoteName -DriveId $Drive.id)) { throw (New-CdException -Code 'CD-6003') }
+        if (-not (Test-CdVaultKey -DriveId $Drive.id)) { throw (New-CdException -Code 'CD-6001') }
+    }
 
     $body = [ordered]@{ fs = (Get-CdDriveFs -Drive $Drive); mountPoint = $mountPoint; mountType = 'cmount' }
     $options = Get-CdMountOptions -Drive $Drive -Account $account -Settings $settings
@@ -184,6 +192,28 @@ function Dismount-CdDrive {
     [void](Invoke-CdRc -Command 'mount/unmount' -Body @{ mountPoint = $mountPoint } -TimeoutSec 60)
     Write-CdLog -Component 'Drives' -Message "Drive '$($Drive.id)' disconnected from $mountPoint."
     New-CdResult -Message (Get-CdText 'drive.disconnected' $Drive.label, $mountPoint) -Data $Drive
+}
+
+function Remove-CdDrive {
+    # Disconnects a drive and removes its definition (and the vault key on this PC). Cloud data stays untouched.
+    param([Parameter(Mandatory)][string]$Id)
+    $drive = Get-CdDrive -Id $Id
+    if (-not $drive) { throw (New-CdException -Code 'CD-2006' -Detail "unknown drive '$Id'") }
+    if (Test-CdEngineRunning) {
+        try { [void](Dismount-CdDrive -Drive $drive -Force) }
+        catch { Write-CdLog -Level WARN -Component 'Drives' -Message "Disconnect of '$($drive.id)' failed: $($_.Exception.Message)" }
+    }
+    if ($drive.encrypted) {
+        [void](Start-CdEngine)
+        Remove-CdRemoteIfPresent -Name (Get-CdVaultRemoteName -DriveId $drive.id)
+    }
+    Remove-CdDriveLabel -Drive $drive
+    $settings = Get-CdSettings
+    $settings.drives = @($settings.drives | Where-Object { $_.id -ne $drive.id })
+    Save-CdSettings -Settings $settings
+    if ((Get-CdMountedDrives).Count -eq 0 -and (Read-CdEngineState)) { Stop-CdEngine }
+    Write-CdLog -Component 'Drives' -Message "Drive '$($drive.id)' removed."
+    New-CdResult -Message (Get-CdText 'drive.removed' $drive.label, "$($drive.letter):") -Data $drive
 }
 
 function Get-CdDriveStatusList {

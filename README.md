@@ -7,12 +7,14 @@ CloudDrives bindet deine Cloud-Speicher als echte Laufwerksbuchstaben ein, z. B.
 Grundlage sind [rclone](https://rclone.org) und [WinFsp](https://winfsp.dev). Bedient wird es über ein deutsches Konsolen-Menü
 mit geführten Assistenten. Die Installation läuft automatisch, und Anmeldedaten werden verschlüsselt gespeichert.
 
-> **Status:** in Entwicklung (Version 0.1). Kern, Engine und Laufwerksverwaltung sind getestet.
-> Verschlüsselte Tresore, Autostart, Diagnose und Updates folgen.
+> **Status:** in Entwicklung (Version 0.1). Kern, Engine, Laufwerksverwaltung und verschlüsselte Tresore sind getestet.
+> Autostart, Diagnose und Updates folgen.
 
 ## Funktionen
 
 - **Mehrere Konten:** privates OneDrive (auch Microsoft 365 Family), privates Google-Konto und Google Workspace
+- **Verschlüsselung nach Wahl:** Pro Konto entscheidest du, ob du ein normales Laufwerk möchtest, zusätzlich einen
+  verschlüsselten Tresor oder nur einen Tresor. Mehr dazu in [docs/ENCRYPTION.md](docs/ENCRYPTION.md)
 - **Sichere Anmeldung im Browser:** CloudDrives sieht nie ein Passwort und speichert nur widerrufbare Tokens,
   verschlüsselt mit einem Schlüssel in der Windows-Anmeldeinformationsverwaltung
 - **Wie lokale Laufwerke:** Office, Bildbearbeitung und andere Programme arbeiten direkt auf dem Laufwerk.

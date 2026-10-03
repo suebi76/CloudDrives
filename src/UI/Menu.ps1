@@ -65,19 +65,26 @@ function Start-CdConsoleMenu {
         Write-CdRule
         Write-CdInfo -Text $engineText -Color DarkGray
         Write-Host ''
-        Write-CdInfo -Text ('[1] ' + (Get-CdText 'menu.connectAll') + '      [2] ' + (Get-CdText 'menu.disconnectAll')) -Color White
-        Write-CdInfo -Text ('[3] ' + (Get-CdText 'menu.addAccount') + '      [4] ' + (Get-CdText 'menu.removeAccount')) -Color White
-        Write-CdInfo -Text ('[5] ' + (Get-CdText 'menu.refresh') + '      [6] ' + (Get-CdText 'menu.openLogs')) -Color White
-        Write-CdInfo -Text ('[0] ' + (Get-CdText 'menu.exit')) -Color White
-        $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '4', '5', '6', '0')
+        $menu = @(
+            @('1', 'menu.connectAll', '2', 'menu.disconnectAll'),
+            @('3', 'menu.addAccount', '4', 'menu.removeAccount'),
+            @('5', 'menu.manageDrives', '6', 'menu.openLogs'),
+            @('7', 'menu.refresh', '0', 'menu.exit')
+        )
+        foreach ($row in $menu) {
+            $left = ('[{0}] {1}' -f $row[0], (Get-CdText $row[1])).PadRight(28)
+            Write-CdInfo -Text ($left + ('[{0}] {1}' -f $row[2], (Get-CdText $row[3]))) -Color White
+        }
+        $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '4', '5', '6', '7', '0')
         try {
             switch ($choice) {
                 '1' { Invoke-CdConnectUi }
                 '2' { Invoke-CdDisconnectUi }
                 '3' { Start-CdAddAccountWizard }
                 '4' { Start-CdRemoveAccountWizard }
-                '5' { $script:CdQuotaCache = @{} }
+                '5' { Start-CdManageDrivesMenu }
                 '6' { Start-Process -FilePath 'explorer.exe' -ArgumentList @((Get-CdContext).LogDir) }
+                '7' { $script:CdQuotaCache = @{} }
                 '0' { return 0 }
             }
         }

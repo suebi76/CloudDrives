@@ -146,3 +146,105 @@ Describe 'Engine and mounts' -Skip:(-not $script:CanRun) {
         }
     }
 }
+
+Describe 'Encrypted vaults' -Skip:(-not $script:CanRun) {
+    AfterAll {
+        InModuleScope CloudDrives { try { [void](Invoke-CdDisconnect -Force) } catch { Write-Warning $_ } }
+    }
+
+    It 'creates a new vault whose file names and contents are encrypted in the cloud' {
+        InModuleScope CloudDrives -Parameters @{ Backing = $script:Backing } {
+            $letter = Get-CdSuggestedDriveLetter -Preferred @('V', 'W', 'Y', 'U')
+            $result = Add-CdVaultDrive -AccountId 'itest' -Folder 'Tresor' -Letter $letter -Label 'Test Tresor' -Password 'correct horse battery' -Salt 'pepper-salt-1234'
+            $result.Data.State | Should -Be 'new'
+            $drive = $result.Data.Drive
+            $drive.encrypted | Should -BeTrue
+            $drive.vault.filenameEncoding | Should -Be 'base32768'
+
+            (Mount-CdDrive -Drive $drive).Success | Should -BeTrue
+            [IO.File]::WriteAllText("$($drive.letter):\geheim.txt", 'streng geheimer Inhalt')
+            [IO.File]::ReadAllText("$($drive.letter):\geheim.txt") | Should -Be 'streng geheimer Inhalt'
+            Start-Sleep -Seconds 2
+            $fs = [string](Get-CdMountedDrives)["$($drive.letter):"].Fs
+            $deadline = (Get-Date).AddSeconds(30)
+            while ((Get-CdPendingUploadCount -Fs $fs) -gt 0 -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 500 }
+
+            $files = @(Get-ChildItem -LiteralPath (Join-Path $Backing 'Tresor') -File -Recurse -Force)
+            $files.Count | Should -Be 2
+            $files.Name | Should -Not -Contain 'geheim.txt'
+            $files.Name | Should -Not -Contain '.clouddrives-tresor'
+            foreach ($file in $files) { [IO.File]::ReadAllText($file.FullName) | Should -Not -Match 'geheim|CloudDrives vault' }
+            (Dismount-CdDrive -Drive $drive -Force).Success | Should -BeTrue
+        }
+    }
+
+    It 'refuses a wrong password and leaves nothing behind' {
+        InModuleScope CloudDrives {
+            $remotesBefore = @(Get-CdRemoteNames)
+            $drivesBefore = @((Get-CdSettings).drives).Count
+            $letter = Get-CdSuggestedDriveLetter -Preferred @('W', 'Y', 'U')
+            try {
+                [void](Add-CdVaultDrive -AccountId 'itest' -Folder 'Tresor' -Letter $letter -Label 'Falsch' -Password 'wrong password!!' -Salt 'pepper-salt-1234')
+                throw 'expected an error'
+            }
+            catch { Get-CdErrorCode $_ | Should -Be 'CD-6001' }
+            @(Get-CdRemoteNames) | Should -Be $remotesBefore
+            @((Get-CdSettings).drives).Count | Should -Be $drivesBefore
+        }
+    }
+
+    It 'connects an existing vault with the right password' {
+        InModuleScope CloudDrives {
+            $letter = Get-CdSuggestedDriveLetter -Preferred @('W', 'Y', 'U')
+            $result = Add-CdVaultDrive -AccountId 'itest' -Folder '\Tresor\' -Letter $letter -Label 'Zweiter PC' -Password 'correct horse battery' -Salt 'pepper-salt-1234'
+            $result.Data.State | Should -Be 'existing'
+            (Remove-CdDrive -Id $result.Data.Drive.id).Success | Should -BeTrue
+            [void](Start-CdEngine)
+            @(Get-CdRemoteNames) | Should -Not -Contain (Get-CdVaultRemoteName -DriveId $result.Data.Drive.id)
+        }
+    }
+
+    It 'adopts a vault that was created with plain rclone' {
+        InModuleScope CloudDrives {
+            [void](Start-CdEngine)
+            $body = [ordered]@{
+                name = 'cd-plain-crypt'; type = 'crypt'; opt = @{ obscure = $true }
+                parameters = [ordered]@{ remote = 'cd-itest:Altbestand'; filename_encryption = 'standard'; directory_name_encryption = 'true'; filename_encoding = 'base32768'; password = 'old vault pass'; password2 = 'old salt value' }
+            }
+            [void](Invoke-CdRc -Command 'config/create' -Body $body)
+            $source = Join-Path (Get-CdContext).Home 'plain-source'
+            [void](New-Item -ItemType Directory -Path $source -Force)
+            [IO.File]::WriteAllText((Join-Path $source 'alt.txt'), 'old data')
+            [void](Invoke-CdRc -Command 'operations/copyfile' -Body ([ordered]@{ srcFs = $source; srcRemote = 'alt.txt'; dstFs = 'cd-plain-crypt:'; dstRemote = 'alt.txt' }))
+            Remove-CdRemote -Name 'cd-plain-crypt'
+
+            $letter = Get-CdSuggestedDriveLetter -Preferred @('W', 'Y', 'U')
+            $result = Add-CdVaultDrive -AccountId 'itest' -Folder 'Altbestand' -Letter $letter -Label 'Altbestand' -Password 'old vault pass' -Salt 'old salt value'
+            $result.Data.State | Should -Be 'existing'
+            Test-CdVaultKey -DriveId $result.Data.Drive.id | Should -BeTrue
+            (Remove-CdDrive -Id $result.Data.Drive.id).Success | Should -BeTrue
+        }
+    }
+
+    It 'never mounts a vault whose key is wrong' {
+        InModuleScope CloudDrives {
+            [void](Start-CdEngine)
+            $drive = @((Get-CdSettings).drives) | Where-Object { $_.encrypted } | Select-Object -First 1
+            $remote = Get-CdVaultRemoteName -DriveId $drive.id
+            [void](Invoke-CdRc -Command 'config/update' -Body ([ordered]@{ name = $remote; parameters = @{ password = 'tampered password' }; opt = @{ obscure = $true } }))
+            try { [void](Mount-CdDrive -Drive $drive); throw 'expected an error' }
+            catch { Get-CdErrorCode $_ | Should -Be 'CD-6001' }
+            (Get-CdMountedDrives).ContainsKey("$($drive.letter):") | Should -BeFalse
+        }
+    }
+
+    It 'removes a vault drive and its key but keeps the encrypted files' {
+        InModuleScope CloudDrives -Parameters @{ Backing = $script:Backing } {
+            $drive = @((Get-CdSettings).drives) | Where-Object { $_.encrypted } | Select-Object -First 1
+            (Remove-CdDrive -Id $drive.id).Success | Should -BeTrue
+            [void](Start-CdEngine)
+            @(Get-CdRemoteNames) | Should -Not -Contain (Get-CdVaultRemoteName -DriveId $drive.id)
+            @(Get-ChildItem -LiteralPath (Join-Path $Backing 'Tresor') -File -Recurse -Force).Count | Should -Be 2
+        }
+    }
+}

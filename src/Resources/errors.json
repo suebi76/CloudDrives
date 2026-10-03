@@ -35,6 +35,8 @@
     { "code": "CD-5003", "action": null, "patterns": [] },
     { "code": "CD-5004", "action": null, "patterns": [] },
     { "code": "CD-6002", "action": null, "patterns": [] },
+    { "code": "CD-6003", "action": "vault-password", "patterns": [] },
+    { "code": "CD-6004", "action": null, "patterns": [] },
     { "code": "CD-7002", "action": null, "patterns": [] },
     { "code": "CD-9000", "action": null, "patterns": [] },
     { "code": "CD-9001", "action": null, "patterns": [] },
