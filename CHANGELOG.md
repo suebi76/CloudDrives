@@ -17,6 +17,16 @@ All notable changes to CloudDrives are documented here. The format follows
   - afterwards CloudDrives restarts from the program folder (also after the first installation)
 - Daily update hint after the autostart
 - `uninstall`, optionally including all local sign-ins and settings
+- Diagnosis ("Diagnose & Hilfe", `doctor|diagnose [--fix] [--bundle] [--json]`)
+  - traffic-light checks of system, components, settings, network, updates, engine, accounts, drives, recent
+    errors and autostart, with the explanation of each error code
+  - "fix automatically": install rclone/WinFsp, restart the engine, connect drives, set Explorer names, repair
+    the autostart, protect the data folder, renew sign-ins
+  - knows typical cases such as the 15 GB per-user limit of Google Workspace or a Windows proxy rclone cannot see
+  - rclone log noise (CloudDrives' own probing requests, cancelled requests, symbolic link queries) is ignored
+- Support bundle (ZIP) with diagnosis, versions, settings and the logs of the last 7 days
+  - secrets, e-mail addresses, user and computer name and profile paths are redacted
+  - before saving, it is searched for every secret CloudDrives knows; a hit discards it (CD-9003)
 - "Manage accounts": sign an account in again or change its Google client ID without removing it
   - the browser sign-in runs on a temporary remote; the account changes only when the new sign-in works
   - it must belong to the same cloud account (Google user ID, OneDrive drive ID), otherwise nothing changes (CD-3009)

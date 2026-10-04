@@ -30,6 +30,9 @@ mit geführten Assistenten. Die Installation läuft automatisch, und Anmeldedate
 
 ## Installation
 
+> **Hinweis:** Das erste Release folgt in Kürze. Bis dahin funktionieren Einzeiler und Release-ZIP noch nicht. Lade
+> stattdessen das Repository herunter (grüner Button **Code → Download ZIP**), entpacke es und starte `CloudDrives.bat`.
+
 **Empfohlen: per Einzeiler.** PowerShell öffnen (Startmenü → „PowerShell“, ohne Administratorrechte) und eingeben:
 
 ```powershell
@@ -79,12 +82,36 @@ Gestartet wird CloudDrives über das Startmenü. Die Befehle unten gelten für d
 | `CloudDrives.bat verbinden` | alle Laufwerke verbinden (`verbinden K` nur eines) |
 | `CloudDrives.bat trennen` | alle Laufwerke trennen (`--force` trotz laufender Uploads) |
 | `CloudDrives.bat status --json` | Status für Skripte |
+| `CloudDrives.bat diagnose` | Diagnose mit Ampel-Anzeige (`--fix` behebt automatisch, `--bundle` erstellt ein Support-Paket) |
 | `CloudDrives.bat neu-anmelden K` | Konto von Laufwerk K: neu anmelden, ohne es zu entfernen |
 | `CloudDrives.bat client-id K` | eigene Google-Client-ID des Kontos ändern |
 | `CloudDrives.bat autostart an` | bei der Windows-Anmeldung automatisch verbinden (`aus` schaltet es ab) |
 | `CloudDrives.bat aktualisieren` | nach Updates suchen und installieren (`--check` nur prüfen) |
 | `CloudDrives.bat deinstallieren` | CloudDrives von diesem PC entfernen |
 | `CloudDrives.bat hilfe` | alle Befehle |
+
+## Hilfe bei Problemen
+
+Im Menü unter **Diagnose & Hilfe** prüft CloudDrives in wenigen Sekunden diese Punkte und zeigt das Ergebnis als
+Ampel-Liste, jeweils mit Lösungsvorschlag:
+
+- System, rclone und WinFsp
+- Einstellungen und Verschlüsselung
+- Netzwerk (Erreichbarkeit, Proxy)
+- Hintergrunddienst
+- Konten (Anmeldung, Speicherplatz)
+- Laufwerke (Lesetest, Tresor-Schlüssel, Uploads)
+- letzte Fehler und Autostart
+
+Vieles behebt **„Automatisch beheben“** selbst: fehlende Komponenten installieren, Laufwerke verbinden, Autostart
+reparieren und abgelaufene Anmeldungen erneuern.
+
+Für eine Fehlermeldung erstellst du dort ein **Support-Paket**, eine ZIP-Datei auf dem Desktop.
+
+- **Nicht enthalten:** Passwörter, Tokens, Schlüssel und Dateiinhalte.
+- **Geschwärzt:** E-Mail-Adressen, Benutzername, Computername und Profilpfade.
+- **Sicherheitsprüfung:** Vor dem Speichern durchsucht CloudDrives das Paket nach jedem Geheimnis, das es kennt. Bei einem
+  Treffer wird das Paket verworfen.
 
 ## Sicherheit
 

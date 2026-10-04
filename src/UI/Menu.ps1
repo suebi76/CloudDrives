@@ -107,7 +107,7 @@ function Start-CdConsoleMenu {
             @('1', 'menu.connectAll', '2', 'menu.disconnectAll'),
             @('3', 'menu.addAccount', '4', 'menu.manageAccounts'),
             @('5', 'menu.manageDrives', '6', 'menu.settings'),
-            @('7', 'menu.openLogs', '8', 'menu.refresh')
+            @('7', 'menu.diagnostics', '8', 'menu.refresh')
         )
         foreach ($row in $menu) {
             $left = ('[{0}] {1}' -f $row[0], (Get-CdText $row[1])).PadRight(28)
@@ -123,7 +123,7 @@ function Start-CdConsoleMenu {
                 '4' { Start-CdManageAccountsMenu }
                 '5' { Start-CdManageDrivesMenu }
                 '6' { if ((Start-CdSettingsMenu) -eq 'exit') { return 0 } }
-                '7' { Start-Process -FilePath 'explorer.exe' -ArgumentList @((Get-CdContext).LogDir) }
+                '7' { Start-CdDoctorUi }
                 '8' { $script:CdQuotaCache = @{} }
                 '0' { return 0 }
             }

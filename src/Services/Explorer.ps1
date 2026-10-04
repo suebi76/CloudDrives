@@ -34,6 +34,14 @@ function Set-CdDriveLabel {
     }
 }
 
+function Get-CdDriveLabel {
+    # The name Explorer shows for the drive (set by CloudDrives), or $null.
+    param([Parameter(Mandatory)][System.Collections.IDictionary]$Drive)
+    $value = (Get-ItemProperty -LiteralPath (Get-CdExplorerKey -Drive $Drive) -Name '_LabelFromReg' -ErrorAction SilentlyContinue)._LabelFromReg
+    if ($value) { return [string]$value }
+    $null
+}
+
 function Remove-CdDriveLabel {
     param([Parameter(Mandatory)][System.Collections.IDictionary]$Drive)
     foreach ($key in @((Get-CdExplorerKey -Drive $Drive), (Get-CdDriveIconKey -Drive $Drive))) {

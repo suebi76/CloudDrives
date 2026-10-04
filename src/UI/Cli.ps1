@@ -1,7 +1,8 @@
 ﻿# Command-line front end. "CloudDrives.bat" without arguments opens the menu; otherwise:
 #   connect|verbinden [all|<drive>...] [--silent]    disconnect|trennen [all|<drive>...] [--force]
 #   status [--json]   add-account   remove-account   relogin|neu-anmelden [<account>]
-#   change-client|client-id [<account>]   autostart   install   update   uninstall   setup   version   help
+#   change-client|client-id [<account>]   doctor|diagnose [--fix] [--bundle [--out=<zip>]] [--json]
+#   autostart   install   update   uninstall   setup   version   help
 
 $script:CdCommandAliases = @{
     'verbinden'        = 'connect'
@@ -10,6 +11,7 @@ $script:CdCommandAliases = @{
     'konto-entfernen'  = 'remove-account'
     'neu-anmelden'     = 'relogin'
     'client-id'        = 'change-client'
+    'diagnose'         = 'doctor'
     'einrichten'       = 'setup'
     'installieren'     = 'install'
     'aktualisieren'    = 'update'
@@ -155,6 +157,32 @@ function Invoke-CdCommandLineRelogin {
     1
 }
 
+function Invoke-CdCommandLineDoctor {
+    # Exit code: 0 = all fine, 1 = warnings, 2 = problems.
+    param([pscustomobject]$Parsed)
+    $json = [bool]$Parsed.Flags['json']
+    $checks = @(Invoke-CdDoctor)
+    if ($Parsed.Flags['fix']) {
+        foreach ($check in @((Get-CdDoctorSummary -Checks $checks).Fixable | Where-Object { -not (Test-CdFixInteractive -Fix $_.Fix) })) {
+            try { foreach ($result in @(Invoke-CdDoctorFix -Check $check)) { if ($result -and -not $json) { Write-CdResult -Result $result } } }
+            catch { if (-not $json) { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) } }
+        }
+        $checks = @(Invoke-CdDoctor)
+    }
+    if ($json) { [Console]::Out.WriteLine((ConvertTo-Json -InputObject @($checks | Select-Object Area, Name, Status, Message, Code, Fix, Target) -Depth 4)) }
+    else {
+        Write-CdHeader -Subtitle (Get-CdText 'doctor.title')
+        Show-CdDoctorReport -Checks $checks
+    }
+    if ($Parsed.Flags['bundle']) {
+        $out = $null
+        if ($Parsed.Flags['out'] -is [string]) { $out = $Parsed.Flags['out'] }
+        $result = New-CdSupportBundle -Checks $checks -Path $out
+        if ($json) { [Console]::Error.WriteLine($result.Data.Path) } else { Write-CdResult -Result $result }
+    }
+    (Get-CdDoctorSummary -Checks $checks).ExitCode
+}
+
 function Invoke-CdCommandLineStatus {
     param([pscustomobject]$Parsed)
     $status = Get-CdStatus
@@ -222,6 +250,7 @@ function Invoke-CdCli {
             'remove-account' { $null = Start-CdRemoveAccountWizard }
             'relogin' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineRelogin -Parsed $parsed) }
             'change-client' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineRelogin -Parsed $parsed -ChangeClient) }
+            'doctor' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineDoctor -Parsed $parsed) }
             'setup' {
                 $ready = @(Start-CdSetupWizard) | Where-Object { $_ -is [bool] } | Select-Object -Last 1
                 if (-not $ready) { $exitCode = 2 }
