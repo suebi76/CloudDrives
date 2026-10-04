@@ -1,5 +1,8 @@
 # CloudDrives
 
+[![CI](https://github.com/suebi76/CloudDrives/actions/workflows/ci.yml/badge.svg)](https://github.com/suebi76/CloudDrives/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/suebi76/CloudDrives)](https://github.com/suebi76/CloudDrives/releases/latest)
+
 **OneDrive und Google Drive als Laufwerke in Windows – per Doppelklick.**
 *Mount OneDrive and Google Drive as Windows drive letters with one double-click (English summary below).*
 
@@ -35,9 +38,6 @@ mit geführten Assistenten. Die Installation läuft automatisch, und Anmeldedate
 - Windows PowerShell 5.1 (vorinstalliert); PowerShell 7 wird ebenfalls unterstützt
 
 ## Installation
-
-> **Hinweis:** Das erste Release folgt in Kürze. Bis dahin funktionieren Einzeiler und Release-ZIP noch nicht. Lade
-> stattdessen das Repository herunter (grüner Button **Code → Download ZIP**), entpacke es und starte `CloudDrives.bat`.
 
 **Empfohlen: per Einzeiler.** PowerShell öffnen (Startmenü → „PowerShell“, ohne Administratorrechte) und eingeben:
 
@@ -100,6 +100,8 @@ Gestartet wird CloudDrives über das Startmenü. Die Befehle unten gelten für d
 
 ## Hilfe bei Problemen
 
+Alle Fehlercodes mit Erklärung und Lösung stehen in [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
+
 Im Menü unter **Diagnose & Hilfe** prüft CloudDrives in wenigen Sekunden diese Punkte und zeigt das Ergebnis als
 Ampel-Liste, jeweils mit Lösungsvorschlag:
 
@@ -154,6 +156,12 @@ Mit `CLOUDDRIVES_RELEASE_SOURCE=<Ordner mit release.json>` installieren und aktu
 
 Aufbau: `src/Infrastructure` (Technik) → `src/Providers` → `src/Services` → `src/Commands` → `src/UI`.
 Abhängigkeiten zeigen nur nach unten.
+
+- **Regeln für Beiträge:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Sicherheitsmodell und Melden von Lücken:** [SECURITY.md](SECURITY.md)
+- **Automatische Prüfungen:** Jeder Push und jeder Pull Request durchläuft auf GitHub Lint, Unit-Tests unter
+  PowerShell 5.1 und 7 und einen Geheimnis-Scan.
+- **Releases:** Ein Versions-Tag erzeugt automatisch ZIP, `install.ps1` und Prüfsummen.
 
 ## English summary
 

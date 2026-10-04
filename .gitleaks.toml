@@ -1,0 +1,13 @@
+# gitleaks configuration (CI secret scan). The default rules apply everywhere except to the tests: they
+# contain deliberately fake tokens and secret-like strings to test the redaction and the secret checks.
+# Real token formats in the tests are still caught by tests/Unit/SourceFiles.Tests.ps1.
+title = "CloudDrives"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Fake values in tests"
+paths = [
+  '''^tests/''',
+]

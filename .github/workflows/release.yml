@@ -1,0 +1,33 @@
+# Publishes a release when a version tag (v1.2.3) is pushed: runs the quality gate, checks that the tag matches
+# the module version, builds CloudDrives-<version>.zip, install.ps1 and SHA256SUMS.txt (tools\Build-Release.ps1)
+# and creates the GitHub release with the matching CHANGELOG section as release notes.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Quality gate
+        shell: pwsh
+        run: ./tools/Invoke-Build.ps1 -Edition Both
+      - name: Build release assets
+        shell: pwsh
+        run: |
+          $version = '${{ github.ref_name }}'.TrimStart('v')
+          $manifest = Get-Content -Raw -Path src/CloudDrives.psd1
+          if ($manifest -notmatch "ModuleVersion\s*=\s*'$([regex]::Escape($version))'") { throw "Tag ${{ github.ref_name }} does not match the module version." }
+          ./tools/Build-Release.ps1 -OutDir out
+          ./tools/Get-ReleaseNotes.ps1 -Version $version | Set-Content -Path release-notes.md -Encoding utf8
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create '${{ github.ref_name }}' (Get-ChildItem out -File).FullName --title 'CloudDrives ${{ github.ref_name }}' --notes-file release-notes.md

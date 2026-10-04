@@ -3,10 +3,14 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
-## [0.2.0] – unreleased
+## [0.2.0] – 2026-10-04
 
 ### Added
 
+- GitHub: CI (lint and unit tests in Windows PowerShell 5.1 and PowerShell 7, gitleaks secret scan), release
+  workflow (tag → ZIP, `install.ps1`, `SHA256SUMS.txt`, notes from this changelog), Dependabot for actions
+- `SECURITY.md`, `CONTRIBUTING.md`, bug report template, and `docs/TROUBLESHOOTING.md` with every error code
+  (generated from the error catalog; a test keeps it up to date)
 - Installation into `%LOCALAPPDATA%\Programs\CloudDrives`
   - no administrator rights needed
   - Start menu and optional desktop shortcut
