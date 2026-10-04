@@ -233,8 +233,10 @@ function Request-CdAutostart {
     if (Read-CdYesNo -Prompt (Get-CdText 'autostart.confirm') -Default $true) {
         try { Write-CdResult -Result (Enable-CdAutostart) }
         catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
-        # Reconnecting after standby or a crash belongs to "automatically connected".
+        # Reconnecting after standby or a crash and the status symbol belong to "automatically connected".
         try { Write-CdResult -Result (Enable-CdWatchdog) }
+        catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+        try { Write-CdResult -Result (Enable-CdTray) }
         catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
     }
     else { Write-CdInfo -Text (Get-CdText 'autostart.later') -Color DarkGray }
@@ -589,17 +591,21 @@ function Start-CdSettingsMenu {
         $watchdog = Get-CdWatchdog
         $watchdogText = Get-CdText 'settings.off'
         if ($watchdog.Enabled) { $watchdogText = Get-CdText 'settings.on' }
+        $tray = Get-CdTray
+        $trayText = Get-CdText 'settings.off'
+        if ($tray.Enabled) { $trayText = Get-CdText 'settings.on' }
         $ctx = Get-CdContext
         if (Test-CdInstalled) { Write-CdInfo -Text (Get-CdText 'settings.version' $ctx.Version, $ctx.AppRoot) -Color DarkGray }
         else { Write-CdInfo -Text (Get-CdText 'settings.versionNotInstalled' $ctx.Version, $ctx.AppRoot) -Color DarkGray }
         Write-Host ''
         Write-CdInfo -Text ('[1] ' + (Get-CdText 'settings.autostart' $autostartText)) -Color White
         Write-CdInfo -Text ('[2] ' + (Get-CdText 'settings.watchdog' $watchdogText)) -Color White
-        Write-CdInfo -Text ('[3] ' + (Get-CdText 'settings.notifications' (Get-CdText "settings.notifications.$($settings.notifications)"))) -Color White
-        Write-CdInfo -Text ('[4] ' + (Get-CdText 'settings.checkUpdates')) -Color White
-        $valid = @('1', '2', '3', '4', '5', '0')
-        if (Test-CdInstalled) { Write-CdInfo -Text ('[5] ' + (Get-CdText 'settings.uninstall')) -Color White }
-        else { Write-CdInfo -Text ('[5] ' + (Get-CdText 'settings.install')) -Color White }
+        Write-CdInfo -Text ('[3] ' + (Get-CdText 'settings.tray' $trayText)) -Color White
+        Write-CdInfo -Text ('[4] ' + (Get-CdText 'settings.notifications' (Get-CdText "settings.notifications.$($settings.notifications)"))) -Color White
+        Write-CdInfo -Text ('[5] ' + (Get-CdText 'settings.checkUpdates')) -Color White
+        $valid = @('1', '2', '3', '4', '5', '6', '0')
+        if (Test-CdInstalled) { Write-CdInfo -Text ('[6] ' + (Get-CdText 'settings.uninstall')) -Color White }
+        else { Write-CdInfo -Text ('[6] ' + (Get-CdText 'settings.install')) -Color White }
         Write-CdInfo -Text ('[0] ' + (Get-CdText 'manage.back')) -Color White
         switch (Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid $valid) {
             '2' {
@@ -611,13 +617,21 @@ function Start-CdSettingsMenu {
                 catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
                 Wait-CdKeyPress
             }
-            '4' {
+            '3' {
+                try {
+                    if ($tray.Enabled) { Write-CdResult -Result (Disable-CdTray) }
+                    else { Write-CdResult -Result (Enable-CdTray) }
+                }
+                catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+                Wait-CdKeyPress
+            }
+            '5' {
                 if (@(Start-CdUpdateUi) | Where-Object { $_ -is [bool] } | Select-Object -Last 1) {
                     Restart-CdFromInstallDir
                     return 'exit'
                 }
             }
-            '5' {
+            '6' {
                 if (Test-CdInstalled) {
                     if (Start-CdUninstallUi) { return 'exit' }
                 }
@@ -637,7 +651,7 @@ function Start-CdSettingsMenu {
                 catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
                 Wait-CdKeyPress
             }
-            '3' {
+            '4' {
                 $order = @('errors', 'all', 'off')
                 $next = $order[([array]::IndexOf($order, [string]$settings.notifications) + 1) % $order.Count]
                 $settings.notifications = $next

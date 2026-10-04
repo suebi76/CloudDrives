@@ -90,6 +90,10 @@ function Start-CdConsoleMenu {
         Wait-CdKeyPress
     }
 
+    # The status symbol belongs to CloudDrives (it may have been hidden earlier in this session).
+    try { if ((Get-CdTray).Enabled) { [void](Start-CdTrayProcess -SrcRoot (Get-CdPreferredSrcRoot)) } }
+    catch { Write-CdLog -Level DEBUG -Component 'Menu' -Message "Tray start: $($_.Exception.Message)" }
+
     while ($true) {
         Clear-CdScreen
         Write-CdHeader

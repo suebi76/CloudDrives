@@ -17,6 +17,14 @@ All notable changes to CloudDrives are documented here. The format follows
   - afterwards CloudDrives restarts from the program folder (also after the first installation)
 - Daily update hint after the autostart
 - `uninstall`, optionally including all local sign-ins and settings
+- Symbol in the notification area (lean on purpose; a full program is planned as a separate v2)
+  - status dot: green = connected, yellow = reconnecting, red = needs the user, grey = nothing connected;
+    the tooltip names the drives or the problem
+  - menu: open a drive, sign an account in again, connect all, disconnect all, open CloudDrives, diagnosis, hide
+  - actions run as separate CloudDrives processes, so the symbol never blocks; status every 10 seconds
+  - shown at every sign-in (scheduled task, turned on with the autostart), own switch in the settings,
+    `tray [on|off|status]`; one symbol per user; replaced by the new version after an update
+  - the diagnosis checks it and can show it again
 - Watchdog: reconnects the drives after standby, a network change or a crash of the engine
   - a scheduled task runs a short check every 5 minutes, after waking up and after a network connection
   - restarts an engine that is gone or no longer responds (a busy engine gets a second chance)

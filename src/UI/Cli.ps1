@@ -2,7 +2,7 @@
 #   connect|verbinden [all|<drive>...] [--silent]    disconnect|trennen [all|<drive>...] [--force]
 #   status [--json]   add-account   remove-account   relogin|neu-anmelden [<account>]
 #   change-client|client-id [<account>]   doctor|diagnose [--fix] [--bundle [--out=<zip>]] [--json]
-#   watchdog [on|off|status]   autostart   install   update   uninstall   setup   version   help
+#   watchdog [on|off|status]   tray [on|off|status]   autostart   install   update   uninstall   setup   version   help
 
 $script:CdCommandAliases = @{
     'verbinden'        = 'connect'
@@ -180,6 +180,8 @@ function Invoke-CdCommandLineDoctor {
         $result = New-CdSupportBundle -Checks $checks -Path $out
         if ($json) { [Console]::Error.WriteLine($result.Data.Path) } else { Write-CdResult -Result $result }
     }
+    # Started from the tray in its own window: keep the window open until the result has been read.
+    if ($Parsed.Flags['pause'] -and -not $json) { Wait-CdKeyPress }
     (Get-CdDoctorSummary -Checks $checks).ExitCode
 }
 
@@ -207,6 +209,24 @@ function Invoke-CdCommandLineWatchdog {
             if ($cycle.Status -eq 'failed') { return 1 }
             return 0
         }
+    }
+}
+
+function Invoke-CdCommandLineTray {
+    # Without an argument the symbol is shown (until it is hidden); that is what the sign-in task runs.
+    param([pscustomobject]$Parsed)
+    $mode = 'show'
+    if ($Parsed.Targets.Count -gt 0) { $mode = $Parsed.Targets[0].ToLowerInvariant() }
+    switch ($mode) {
+        { @('on', 'an', 'ein') -contains $_ } { Write-CdResult -Result (Enable-CdTray); return 0 }
+        { @('off', 'aus') -contains $_ } { Write-CdResult -Result (Disable-CdTray); return 0 }
+        'status' {
+            $state = Get-CdTray
+            if ($state.Enabled) { Write-CdInfo -Text (Get-CdText 'tray.statusOn' (Get-CdText "tray.running.$($state.Running)")) }
+            else { Write-CdInfo -Text (Get-CdText 'tray.statusOff') }
+            return 0
+        }
+        default { return (Start-CdTray) }
     }
 }
 
@@ -282,6 +302,7 @@ function Invoke-CdCli {
             'change-client' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineRelogin -Parsed $parsed -ChangeClient) }
             'doctor' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineDoctor -Parsed $parsed) }
             'watchdog' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineWatchdog -Parsed $parsed) }
+            'tray' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineTray -Parsed $parsed) }
             'setup' {
                 $ready = @(Start-CdSetupWizard) | Where-Object { $_ -is [bool] } | Select-Object -Last 1
                 if (-not $ready) { $exitCode = 2 }
