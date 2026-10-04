@@ -5,6 +5,14 @@ $script:CdSettingsSchemaVersion = 1
 $script:CdSettings = $null
 $script:CdIdPattern = '^[a-z0-9][a-z0-9-]{0,39}$'
 
+function ConvertTo-CdJsonText {
+    # JSON for other programs (--json): characters outside ASCII are escaped as \uXXXX, so the text arrives intact
+    # whatever code page the reading console or script uses.
+    param([Parameter(Mandatory)][AllowNull()][object]$InputObject, [int]$Depth = 5)
+    $json = ConvertTo-Json -InputObject $InputObject -Depth $Depth
+    [regex]::Replace($json, '[^\x00-\x7F]', { param($Match) '\u{0:x4}' -f [int][char]$Match.Value })
+}
+
 function ConvertTo-CdHashtable {
     # Recursively converts ConvertFrom-Json output into ordered hashtables and arrays.
     param([AllowNull()][object]$InputObject)

@@ -180,3 +180,16 @@ Describe 'Command line' {
         }
     }
 }
+
+Describe 'JSON for other programs' {
+    It 'escapes characters outside ASCII so that every console code page reads them intact' {
+        InModuleScope CloudDrives {
+            $label = "Pr$([char]0x00FC)fung $([char]0x2013) Laufwerk $([char]0x2713)"
+            $json = ConvertTo-CdJsonText -InputObject ([ordered]@{ label = $label; letter = 'K' })
+            $json | Should -Match ([regex]::Escape('\u00fc'))
+            $json | Should -Match ([regex]::Escape('\u2013'))
+            $json -match '[^\x00-\x7F]' | Should -BeFalse
+            ($json | ConvertFrom-Json).label | Should -Be $label
+        }
+    }
+}
