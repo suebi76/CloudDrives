@@ -24,13 +24,16 @@ function Get-CdStartupShortcutPath {
 
 function Get-CdAutostartCommand {
     # The command a background task runs: hidden Windows PowerShell executing a CloudDrives command
-    # ("connect --silent" for the autostart, "watchdog --silent" for the watchdog).
-    param([string]$SrcRoot, [string[]]$Command = @('connect', '--silent', '--autostart'))
+    # ("connect --silent" for the autostart, "watchdog --silent" for the watchdog, "tray" with -Sta for the
+    # symbol in the notification area, which needs a single-threaded apartment for Windows Forms).
+    param([string]$SrcRoot, [string[]]$Command = @('connect', '--silent', '--autostart'), [switch]$Sta)
     $ctx = Get-CdContext
     if (-not $SrcRoot) { $SrcRoot = $ctx.SrcRoot }
     $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $script = Join-Path $SrcRoot 'CloudDrives.ps1'
-    $arguments = @('--headless', $powershell, '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $script) + $Command
+    $options = @('-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass')
+    if ($Sta) { $options += '-STA' }
+    $arguments = @('--headless', $powershell) + $options + @('-File', $script) + $Command
     if (-not $ctx.IsDefaultHome) { $arguments += "--home=$($ctx.Home)" }
     [pscustomobject]@{
         Execute          = Join-Path $env:WINDIR 'System32\conhost.exe'

@@ -416,6 +416,16 @@ function Get-CdWatchdogChecks {
     New-CdCheck -Area 'autostart' -Name $name -Message (Get-CdText 'doctor.watchdogOk')
 }
 
+function Get-CdTrayChecks {
+    $name = Get-CdText 'doctor.tray'
+    $tray = Get-CdTray
+    if (-not $tray.Enabled) { return (New-CdCheck -Area 'autostart' -Name $name -Status 'info' -Message (Get-CdText 'doctor.trayOff')) }
+    $problem = Get-CdTaskScriptCheck -Task (Get-CdTrayTask) -Name $name -Fix 'enable-tray'
+    if ($problem) { return $problem }
+    if (-not $tray.Running) { return (New-CdCheck -Area 'autostart' -Name $name -Status 'warn' -Fix 'start-tray' -Message (Get-CdText 'doctor.trayNotRunning')) }
+    New-CdCheck -Area 'autostart' -Name $name -Message (Get-CdText 'doctor.trayOk')
+}
+
 function Get-CdAutostartChecks {
     $name = Get-CdText 'doctor.autostart'
     $state = Get-CdAutostart
@@ -450,7 +460,7 @@ function Invoke-CdDoctor {
         accounts   = { Get-CdAccountChecks }
         drives     = { Get-CdDriveChecks }
         logs       = { Get-CdLogChecks }
-        autostart  = { Get-CdAutostartChecks; Get-CdWatchdogChecks }
+        autostart  = { Get-CdAutostartChecks; Get-CdWatchdogChecks; Get-CdTrayChecks }
     }
     $checks = New-Object System.Collections.Generic.List[object]
     $engineWasRunning = Test-CdEngineRunning
@@ -526,6 +536,11 @@ function Invoke-CdDoctorFix {
         }
         'enable-autostart' { return (Enable-CdAutostart -SrcRoot (Get-CdPreferredSrcRoot)) }
         'enable-watchdog' { return (Enable-CdWatchdog -SrcRoot (Get-CdPreferredSrcRoot)) }
+        'enable-tray' { return (Enable-CdTray -SrcRoot (Get-CdPreferredSrcRoot)) }
+        'start-tray' {
+            [void](Start-CdTrayProcess -SrcRoot (Get-CdPreferredSrcRoot))
+            return (New-CdResult -Message (Get-CdText 'doctor.fixed.tray'))
+        }
         default { throw (New-CdException -Code 'CD-9001' -Detail "no automatic fix '$($Check.Fix)'") }
     }
 }

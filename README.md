@@ -8,7 +8,7 @@ Grundlage sind [rclone](https://rclone.org) und [WinFsp](https://winfsp.dev). Be
 mit geführten Assistenten. Die Installation läuft automatisch, und Anmeldedaten werden verschlüsselt gespeichert.
 
 > **Status:** in Entwicklung (Version 0.2). Getestet sind Kern, Engine, Laufwerksverwaltung, verschlüsselte Tresore,
-> Autostart, automatisches Wiederverbinden, Diagnose sowie Installation und Updates. Ein Symbol im Infobereich folgt.
+> Autostart, automatisches Wiederverbinden, Diagnose, Symbol im Infobereich sowie Installation und Updates.
 
 ## Funktionen
 
@@ -23,6 +23,9 @@ mit geführten Assistenten. Die Installation läuft automatisch, und Anmeldedate
   zurück. Er prüft alle 5 Minuten, nach dem Aufwachen und nach Netzwerkwechseln. Laufwerke, die du selbst trennst,
   bleiben getrennt
 - **Explorer-Integration:** sprechende Namen wie „Google Pro (K:)“ und echte Speicheranzeige
+- **Symbol im Infobereich:** Ein farbiger Punkt zeigt den Status: grün = verbunden, gelb = wird wieder verbunden,
+  rot = braucht dich, grau = nichts verbunden. Per Rechtsklick öffnest du Laufwerke, verbindest oder trennst alle,
+  startest die Diagnose oder meldest ein Konto neu an
 - **Fehleranalyse:** verständliche Meldungen mit Fehlercode (z. B. `CD-4001`) und konkreter Lösung, ausführliche Protokolle
 - **Keine Admin-Rechte nötig:** Ausnahme ist die einmalige Installation des Treibers WinFsp
 
@@ -90,6 +93,7 @@ Gestartet wird CloudDrives über das Startmenü. Die Befehle unten gelten für d
 | `CloudDrives.bat client-id K` | eigene Google-Client-ID des Kontos ändern |
 | `CloudDrives.bat autostart an` | bei der Windows-Anmeldung automatisch verbinden (`aus` schaltet es ab) |
 | `CloudDrives.bat watchdog an` | nach Standby, Netzwerkwechsel oder Absturz automatisch wieder verbinden (`aus`, `status`) |
+| `CloudDrives.bat tray an` | Symbol im Infobereich bei jeder Anmeldung zeigen (`aus`, `status`; ohne Option: jetzt zeigen) |
 | `CloudDrives.bat aktualisieren` | nach Updates suchen und installieren (`--check` nur prüfen) |
 | `CloudDrives.bat deinstallieren` | CloudDrives von diesem PC entfernen |
 | `CloudDrives.bat hilfe` | alle Befehle |
