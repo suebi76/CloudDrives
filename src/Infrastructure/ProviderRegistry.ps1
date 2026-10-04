@@ -1,7 +1,8 @@
 ﻿# Registry of cloud providers. Each provider module (Providers\*.ps1) registers a definition with:
 #   Id, RcloneType, NameKey, Kinds, PreferredLetters, MountOptions, RevokeUrl, NewParameters (script block)
 #   and optionally GetIdentity (script block: @{ Config = remote configuration; AccessToken = token or $null }
-#   -> @{ Id; Name } with a stable account ID, or $null)
+#   -> @{ Id; Name } with a stable account ID, or $null) and ConfigAnswers (answers to the questions rclone asks
+#   while configuring a sign-in, by question name: text, or a script block (question, context) -> text or $null)
 
 $script:CdProviders = [ordered]@{}
 

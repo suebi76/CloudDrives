@@ -18,6 +18,13 @@ Register-CdProvider @{
         }
         $parameters
     }
+    # rclone's questions after the sign-in: OneDrive Personal or Business (not SharePoint), the user's own drive -
+    # should the drive fail its check, rclone asks again and the next drive offered is tried - and confirm it.
+    ConfigAnswers    = @{
+        config_type     = 'onedrive'
+        config_driveid  = { param([object]$Option, [hashtable]$Context) Get-CdUntriedChoice -Option $Option -Context $Context -Prefer '\((personal|business)\)$' }
+        config_drive_ok = 'true'
+    }
     # Who is signed in: rclone stores the ID of the user's drive in the configuration, so the account is known
     # even when its sign-in has expired. The owner's name is shown when the sign-in works.
     GetIdentity      = {

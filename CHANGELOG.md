@@ -3,6 +3,19 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.2.3] – 2026-10-04
+
+### Fixed
+
+- Adding a OneDrive account no longer hangs after the browser sign-in at "Warte auf die Anmeldung im Browser …".
+  After the sign-in, rclone asks which drive to use. CloudDrives now answers rclone's questions itself, step by step
+  (OneDrive Personal or Business, the user's own drive, confirmed). Before, rclone answered them with its defaults
+  and, when a step failed, started over again and again without a message.
+  - when the check of a drive fails, the next drive offered is tried
+  - otherwise the sign-in ends with rclone's error message instead of waiting, for example for the "Database Is Read
+    Only" error some OneDrive Personal accounts currently get (new code CD-3011)
+  - signing a OneDrive account in again is fixed the same way; Google accounts answer rclone's questions the same way
+
 ## [0.2.2] – 2026-10-04
 
 ### Fixed
