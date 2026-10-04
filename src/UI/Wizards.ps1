@@ -219,8 +219,7 @@ function Complete-CdNewDrives {
         $letters = (@($Drives) | ForEach-Object { "$($_.letter):" }) -join ', '
         if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.connectNow' $letters) -Default $true) {
             Write-Host ''
-            Write-CdProgress -Text (Get-CdText 'progress.connect' $letters)
-            try { $results = Invoke-CdConnect -Selection @(@($Drives) | ForEach-Object { $_.id }) }
+            try { $results = Invoke-CdConnect -Selection @(@($Drives) | ForEach-Object { $_.id }) -OnProgress { param([string]$Status) Write-CdProgress -Text $Status } }
             finally { Complete-CdProgress }
             foreach ($item in $results) { Write-CdResult -Result $item }
         }
@@ -547,7 +546,8 @@ function Restart-CdFromInstallDir {
 
 function Start-CdUpdateUi {
     # Returns $true after an update was installed; the caller then restarts CloudDrives.
-    Write-CdStep -Text (Get-CdText 'update.checking')
+    Write-Host ''
+    Write-CdProgress -Text (Get-CdText 'update.checking')
     $updated = $false
     try {
         $state = Get-CdUpdateState
@@ -557,7 +557,7 @@ function Start-CdUpdateUi {
         else {
             Write-CdInfo -Text (Get-CdText 'update.available' ([string]$state.Latest), ([string]$state.Current))
             if (Read-CdYesNo -Prompt (Get-CdText 'update.confirm') -Default $true) {
-                $result = Install-CdUpdate
+                $result = Install-CdUpdate -OnProgress { param([string]$Status) Write-CdProgress -Text $Status }
                 Write-CdResult -Result $result
                 $updated = [bool]($result.Success -and $result.Data)
             }

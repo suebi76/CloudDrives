@@ -91,6 +91,9 @@ function Invoke-CdBackgroundUpdateCheck {
 
 function Install-CdUpdate {
     # Downloads, verifies and installs the newest release. Returns a result (also when already up to date).
+    # $OnProgress gets the status text of each step.
+    param([scriptblock]$OnProgress)
+    Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'update.checking')
     $state = Get-CdUpdateState
     if (-not $state.Release) { return (New-CdResult -Code 'CD-8004' -Success $false -Message (Get-CdText 'error.CD-8004.title')) }
     if (-not $state.Available) { return (New-CdResult -Message (Get-CdText 'update.upToDate' ([string]$state.Current))) }
@@ -101,8 +104,10 @@ function Install-CdUpdate {
     try {
         $zip = Join-Path $work $release.PackageName
         $sums = Join-Path $work 'SHA256SUMS.txt'
+        Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.download' ([string]$release.Version))
         Save-CdReleaseFile -Url $release.PackageUrl -OutFile $zip
         Save-CdReleaseFile -Url $release.ChecksumUrl -OutFile $sums
+        Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.verify')
         $expected = Get-CdChecksumFromList -Text ([IO.File]::ReadAllText($sums)) -FileName $release.PackageName
         $actual = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
         if (-not $expected -or $actual -ne $expected) { throw (New-CdException -Code 'CD-1006' -Detail "update package: expected $expected, got $actual") }
@@ -114,6 +119,7 @@ function Install-CdUpdate {
         if (-not (Test-Path -LiteralPath $manifest) -or (Get-CdManifestVersion -Path $manifest) -ne $release.Version) {
             throw (New-CdException -Code 'CD-8005' -Detail 'package content does not match the release')
         }
+        Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.install' ([string]$release.Version))
         $result = Install-CdApplication -SourceRoot $extracted -NoShortcuts
         Write-CdLog -Component 'Update' -Message "Updated from $($state.Current) to $($release.Version)."
         New-CdResult -Message (Get-CdText 'update.done' ([string]$release.Version)) -Data $result.Data

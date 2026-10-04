@@ -22,7 +22,9 @@ function Invoke-CdConnect {
         [string[]]$Selection,
         [switch]$Silent,
         [switch]$AllowInstall,
-        [scriptblock]$OnResult
+        [scriptblock]$OnResult,
+        # Status texts of the steps: waiting for the network, starting the engine, each drive.
+        [scriptblock]$OnProgress
     )
     $drives = Select-CdDrives -Selection $Selection -AutoConnectOnly:(-not $Selection)
     if ($drives.Count -eq 0) { return @() }
@@ -31,7 +33,7 @@ function Invoke-CdConnect {
 
     $waitSec = 15
     if ($Silent) { $waitSec = 120 }
-    if (-not (Wait-CdNetwork -TimeoutSec $waitSec)) {
+    if (-not (Wait-CdNetwork -TimeoutSec $waitSec -OnWaiting { Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.network') })) {
         $offline = New-CdResult -Success $false -Code 'CD-5001' -Message (Get-CdText 'error.CD-5001.title')
         if ($OnResult) { & $OnResult $offline }
         return @($offline)
@@ -39,8 +41,10 @@ function Invoke-CdConnect {
 
     $lock = Enter-CdLock -Name 'connect' -TimeoutSec 180
     try {
+        if ($OnProgress -and -not (Test-CdEngineRunning)) { Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.engine') }
         [void](Start-CdEngine -AllowInstall:$AllowInstall)
         $results = foreach ($drive in $drives) {
+            Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.connect' ('{0} ({1}:)' -f $drive.label, $drive.letter))
             try { $result = Mount-CdDrive -Drive $drive }
             catch {
                 $info = Get-CdErrorInfo $_
@@ -64,7 +68,9 @@ function Invoke-CdDisconnect {
     param(
         [string[]]$Selection,
         [switch]$Force,
-        [scriptblock]$OnResult
+        [scriptblock]$OnResult,
+        # Status text of each drive.
+        [scriptblock]$OnProgress
     )
     $drives = Select-CdDrives -Selection $Selection
     # Disconnected on purpose: the watchdog must not bring these drives back.
@@ -76,6 +82,7 @@ function Invoke-CdDisconnect {
     $lock = Enter-CdLock -Name 'connect' -TimeoutSec 180
     try {
         $results = foreach ($drive in $drives) {
+            Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.disconnect' ('{0} ({1}:)' -f $drive.label, $drive.letter))
             try { $result = Dismount-CdDrive -Drive $drive -Force:$Force }
             catch {
                 $info = Get-CdErrorInfo $_

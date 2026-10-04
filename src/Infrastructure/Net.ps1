@@ -116,13 +116,16 @@ function Test-CdInternet {
 }
 
 function Wait-CdNetwork {
-    # Waits with exponential backoff until the cloud is reachable (e.g. right after logon).
-    param([int]$TimeoutSec = 120)
+    # Waits with exponential backoff until the cloud is reachable (e.g. right after logon). $OnWaiting is called
+    # once when there is no connection at first (for a progress display).
+    param([int]$TimeoutSec = 120, [scriptblock]$OnWaiting)
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
     $delay = 2
+    $told = $false
     while ($true) {
         if (Test-CdInternet) { return $true }
         if ((Get-Date) -ge $deadline) { return $false }
+        if ($OnWaiting -and -not $told) { & $OnWaiting; $told = $true }
         Write-CdLog -Component 'Net' -Message "No connection yet, retrying in $delay s."
         Start-Sleep -Seconds $delay
         $delay = [Math]::Min($delay * 2, 15)
