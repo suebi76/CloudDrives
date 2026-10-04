@@ -62,10 +62,11 @@ function Start-CdSetupWizard {
 function Show-CdAuthUrl {
     # Opens the provider's sign-in page in the browser and also shows the link (if the browser stays closed).
     param([Parameter(Mandatory)][string]$Url)
+    Complete-CdProgress
     Write-CdInfo -Text (Get-CdText 'wizard.add.browserOpening')
     Write-CdInfo -Text ('  ' + $Url) -Color Cyan
     try { Start-Process -FilePath $Url } catch { Write-CdInfo -Text (Get-CdText 'wizard.add.browserFailed') -Color Yellow }
-    Write-CdInfo -Text (Get-CdText 'wizard.add.waiting') -Color DarkGray
+    Write-CdInfo -Text (Get-CdText 'wizard.add.cancelHint') -Color DarkGray
 }
 
 function Read-CdGoogleClient {
@@ -167,13 +168,16 @@ function Start-CdAddAccountWizard {
     if ($kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.workspaceHint') -Color DarkGray }
     try {
         $result = Add-CdAccount -Provider $provider -Label $label -Kind $kind -ClientId $client.ClientId -ClientSecret $client.ClientSecret `
-            -OnAuthUrl { param([string]$Url) Show-CdAuthUrl -Url $Url } -ShouldCancel { Test-CdEscapePressed }
+            -OnAuthUrl { param([string]$Url) Show-CdAuthUrl -Url $Url } -ShouldCancel { Test-CdEscapePressed } `
+            -OnProgress { param([string]$Status) Write-CdProgress -Text $Status }
     }
     catch {
+        Complete-CdProgress
         Write-CdErrorInfo -Info (Get-CdErrorInfo $_)
         Wait-CdKeyPress
         return
     }
+    Complete-CdProgress
     $account = $result.Data.Account
     $about = $result.Data.About
     Write-Host ''
@@ -215,7 +219,9 @@ function Complete-CdNewDrives {
         $letters = (@($Drives) | ForEach-Object { "$($_.letter):" }) -join ', '
         if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.connectNow' $letters) -Default $true) {
             Write-Host ''
-            $results = Invoke-CdConnect -Selection @(@($Drives) | ForEach-Object { $_.id })
+            Write-CdProgress -Text (Get-CdText 'progress.connect' $letters)
+            try { $results = Invoke-CdConnect -Selection @(@($Drives) | ForEach-Object { $_.id }) }
+            finally { Complete-CdProgress }
             foreach ($item in $results) { Write-CdResult -Result $item }
         }
         Request-CdAutostart
@@ -793,18 +799,22 @@ function Start-CdReloginWizard {
     if ($Account.kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.workspaceHint') -Color DarkGray }
     $confirmIdentity = {
         param($Identity, $Owner)
+        Complete-CdProgress
         Write-Host ''
         Read-CdYesNo -Prompt (Get-CdText 'relogin.confirmIdentity' $Identity.Name, $Owner.label) -Default $true
     }
     try {
         $result = Update-CdAccountLogin -AccountId $Account.id -ClientId $client.ClientId -ClientSecret $client.ClientSecret `
-            -OnAuthUrl { param([string]$Url) Show-CdAuthUrl -Url $Url } -ShouldCancel { Test-CdEscapePressed } -ConfirmIdentity $confirmIdentity
+            -OnAuthUrl { param([string]$Url) Show-CdAuthUrl -Url $Url } -ShouldCancel { Test-CdEscapePressed } -ConfirmIdentity $confirmIdentity `
+            -OnProgress { param([string]$Status) Write-CdProgress -Text $Status }
     }
     catch {
+        Complete-CdProgress
         Write-CdErrorInfo -Info (Get-CdErrorInfo $_)
         if (-not $Embedded) { Wait-CdKeyPress }
         return $false
     }
+    Complete-CdProgress
     Write-Host ''
     Write-CdOk -Text $result.Message
     if ($result.Data.Identity.Name) { Write-CdInfo -Text (Get-CdText 'relogin.signedInAs' $result.Data.Identity.Name) }

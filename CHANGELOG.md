@@ -3,6 +3,24 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.2.4] – 2026-10-04
+
+### Changed
+
+- Signing in shows what CloudDrives is doing. A status line with a turning bar and the seconds so far replaces the
+  fixed "Warte auf die Anmeldung im Browser …", so it is visible at any moment that CloudDrives is still working:
+  - waiting for the sign-in in the browser
+  - "Anmeldung erhalten – CloudDrives richtet das Konto ein …" as soon as the browser has delivered the sign-in,
+    with the attempt when rclone has to try again
+  - reading the storage space, checking which account signed in, reconnecting or connecting the drives
+
+### Fixed
+
+- OneDrive: the sign-in takes the user's own drive right away. For some OneDrive Personal accounts Microsoft also
+  lists stale drives ("ObjectHandle is Invalid"), and rclone offered those first; each cost about ten seconds
+  before the next drive was tried. CloudDrives now asks Microsoft Graph for the user's drive (`/me/drive`) and
+  answers with it.
+
 ## [0.2.3] – 2026-10-04
 
 ### Fixed
