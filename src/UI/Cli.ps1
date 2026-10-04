@@ -2,7 +2,7 @@
 #   connect|verbinden [all|<drive>...] [--silent]    disconnect|trennen [all|<drive>...] [--force]
 #   status [--json]   add-account   remove-account   relogin|neu-anmelden [<account>]
 #   change-client|client-id [<account>]   doctor|diagnose [--fix] [--bundle [--out=<zip>]] [--json]
-#   autostart   install   update   uninstall   setup   version   help
+#   watchdog [on|off|status]   autostart   install   update   uninstall   setup   version   help
 
 $script:CdCommandAliases = @{
     'verbinden'        = 'connect'
@@ -183,6 +183,33 @@ function Invoke-CdCommandLineDoctor {
     (Get-CdDoctorSummary -Checks $checks).ExitCode
 }
 
+function Invoke-CdCommandLineWatchdog {
+    # Without an argument one watchdog cycle runs (that is what the scheduled task does every 5 minutes).
+    param([pscustomobject]$Parsed)
+    $mode = 'run'
+    if ($Parsed.Targets.Count -gt 0) { $mode = $Parsed.Targets[0].ToLowerInvariant() }
+    switch ($mode) {
+        { @('on', 'an', 'ein') -contains $_ } { Write-CdResult -Result (Enable-CdWatchdog); return 0 }
+        { @('off', 'aus') -contains $_ } { Write-CdResult -Result (Disable-CdWatchdog); return 0 }
+        'status' {
+            $state = Get-CdWatchdog
+            if ($state.Enabled) { Write-CdInfo -Text (Get-CdText 'watchdog.statusOn' $state.Detail) }
+            else { Write-CdInfo -Text (Get-CdText 'watchdog.statusOff') }
+            return 0
+        }
+        default {
+            $cycle = Invoke-CdWatchdog
+            if ($cycle.Status -ne 'idle') { Write-CdLog -Component 'Watchdog' -Message "Cycle: $($cycle.Status) (engine restarted: $($cycle.EngineRestarted), drives: $(@($cycle.Results).Count))." }
+            if (-not $Parsed.Flags['silent']) {
+                foreach ($item in @($cycle.Results)) { Write-CdResult -Result $item }
+                Write-CdInfo -Text (Get-CdText "watchdog.cycle.$($cycle.Status)")
+            }
+            if ($cycle.Status -eq 'failed') { return 1 }
+            return 0
+        }
+    }
+}
+
 function Invoke-CdCommandLineStatus {
     param([pscustomobject]$Parsed)
     $status = Get-CdStatus
@@ -230,7 +257,10 @@ function Invoke-CdCli {
         if ($settings -and $settings.logLevel) { Set-CdLogLevel -Level ([string]$settings.logLevel) }
         Remove-CdOldLog
         $ctx = Get-CdContext
-        Write-CdLog -Component 'Cli' -Message "CloudDrives $($ctx.Version): '$($parsed.Command)'" -Data @{
+        # The watchdog runs every 5 minutes; only what it actually does belongs in the normal log.
+        $routineLevel = 'INFO'
+        if ($parsed.Command -eq 'watchdog' -and $parsed.Targets.Count -eq 0) { $routineLevel = 'DEBUG' }
+        Write-CdLog -Level $routineLevel -Component 'Cli' -Message "CloudDrives $($ctx.Version): '$($parsed.Command)'" -Data @{
             args = $Arguments; ps = $PSVersionTable.PSVersion.ToString(); edition = $PSVersionTable.PSEdition
             os = [Environment]::OSVersion.VersionString; home = $ctx.Home
         }
@@ -251,6 +281,7 @@ function Invoke-CdCli {
             'relogin' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineRelogin -Parsed $parsed) }
             'change-client' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineRelogin -Parsed $parsed -ChangeClient) }
             'doctor' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineDoctor -Parsed $parsed) }
+            'watchdog' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineWatchdog -Parsed $parsed) }
             'setup' {
                 $ready = @(Start-CdSetupWizard) | Where-Object { $_ -is [bool] } | Select-Object -Last 1
                 if (-not $ready) { $exitCode = 2 }
@@ -273,6 +304,8 @@ function Invoke-CdCli {
         }
         $exitCode = 2
     }
-    Write-CdLog -Component 'Cli' -Message "Finished with exit code $exitCode."
+    $finishLevel = 'INFO'
+    if ($routineLevel -eq 'DEBUG' -and $exitCode -eq 0) { $finishLevel = 'DEBUG' }
+    Write-CdLog -Level $finishLevel -Component 'Cli' -Message "Finished with exit code $exitCode."
     [int]$exitCode
 }

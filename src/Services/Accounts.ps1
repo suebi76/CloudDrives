@@ -333,6 +333,7 @@ function Remove-CdAccount {
     $account = Get-CdAccount -Id $Id
     if (-not $account) { throw (New-CdException -Code 'CD-2006' -Detail "unknown account '$Id'") }
     $drives = @($settings.drives | Where-Object { $_.account -eq $Id })
+    Remove-CdWantedDrives -DriveIds @($drives | ForEach-Object { [string]$_.id })
 
     [void](Start-CdEngine)
     foreach ($drive in $drives) {

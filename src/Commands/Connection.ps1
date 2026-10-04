@@ -26,6 +26,8 @@ function Invoke-CdConnect {
     )
     $drives = Select-CdDrives -Selection $Selection -AutoConnectOnly:(-not $Selection)
     if ($drives.Count -eq 0) { return @() }
+    # The user (or the autostart) wants these drives - even if this attempt fails, the watchdog keeps trying.
+    Add-CdWantedDrives -DriveIds @($drives | ForEach-Object { [string]$_.id })
 
     $waitSec = 15
     if ($Silent) { $waitSec = 120 }
@@ -35,16 +37,22 @@ function Invoke-CdConnect {
         return @($offline)
     }
 
-    [void](Start-CdEngine -AllowInstall:$AllowInstall)
-    $results = foreach ($drive in $drives) {
-        try { $result = Mount-CdDrive -Drive $drive }
-        catch {
-            $info = Get-CdErrorInfo $_
-            Write-CdLog -Level ERROR -Component 'Connect' -Message "Drive '$($drive.id)' failed: $($info.Code) $($info.Detail)"
-            $result = New-CdResult -Success $false -Code $info.Code -Message (Get-CdText 'drive.connectFailed' $drive.label, "$($drive.letter):") -Detail $info.Detail -Data $drive
+    $lock = Enter-CdLock -Name 'connect' -TimeoutSec 180
+    try {
+        [void](Start-CdEngine -AllowInstall:$AllowInstall)
+        $results = foreach ($drive in $drives) {
+            try { $result = Mount-CdDrive -Drive $drive }
+            catch {
+                $info = Get-CdErrorInfo $_
+                Write-CdLog -Level ERROR -Component 'Connect' -Message "Drive '$($drive.id)' failed: $($info.Code) $($info.Detail)"
+                $result = New-CdResult -Success $false -Code $info.Code -Message (Get-CdText 'drive.connectFailed' $drive.label, "$($drive.letter):") -Detail $info.Detail -Data $drive
+            }
+            if ($OnResult) { & $OnResult $result }
+            $result
         }
-        if ($OnResult) { & $OnResult $result }
-        $result
+    }
+    finally {
+        Exit-CdLock -Mutex $lock
     }
     # Learn who is signed in on older accounts while their sign-in works (needed to check a later sign-in).
     $connected = @($results | Where-Object { $_.Success -and $_.Data -and $_.Data.account } | ForEach-Object { [string]$_.Data.account } | Select-Object -Unique)
@@ -58,23 +66,36 @@ function Invoke-CdDisconnect {
         [switch]$Force,
         [scriptblock]$OnResult
     )
+    $drives = Select-CdDrives -Selection $Selection
+    # Disconnected on purpose: the watchdog must not bring these drives back.
+    Remove-CdWantedDrives -DriveIds @($drives | ForEach-Object { [string]$_.id })
     if (-not (Test-CdEngineRunning)) {
         if (Read-CdEngineState) { Stop-CdEngine }
         return @()
     }
-    $drives = Select-CdDrives -Selection $Selection
-    $results = foreach ($drive in $drives) {
-        try { $result = Dismount-CdDrive -Drive $drive -Force:$Force }
-        catch {
-            $info = Get-CdErrorInfo $_
-            Write-CdLog -Level ERROR -Component 'Disconnect' -Message "Drive '$($drive.id)' failed: $($info.Code) $($info.Detail)"
-            $result = New-CdResult -Success $false -Code $info.Code -Message (Get-CdText 'drive.disconnectFailed' $drive.label, "$($drive.letter):") -Detail $info.Detail -Data $drive
+    $lock = Enter-CdLock -Name 'connect' -TimeoutSec 180
+    try {
+        $results = foreach ($drive in $drives) {
+            try { $result = Dismount-CdDrive -Drive $drive -Force:$Force }
+            catch {
+                $info = Get-CdErrorInfo $_
+                Write-CdLog -Level ERROR -Component 'Disconnect' -Message "Drive '$($drive.id)' failed: $($info.Code) $($info.Detail)"
+                $result = New-CdResult -Success $false -Code $info.Code -Message (Get-CdText 'drive.disconnectFailed' $drive.label, "$($drive.letter):") -Detail $info.Detail -Data $drive
+            }
+            if ($OnResult -and $result.Code -ne 'CD-0002') { & $OnResult $result }
+            $result
         }
-        if ($OnResult -and $result.Code -ne 'CD-0002') { & $OnResult $result }
-        $result
+        # Drives that stay connected (e.g. because of pending uploads) are still wanted.
+        $kept = @($results | Where-Object { -not $_.Success -and $_.Data } | ForEach-Object {
+                if ($_.Data -is [System.Collections.IDictionary]) { [string]$_.Data.id } else { [string]$_.Data.Drive.id }
+            } | Where-Object { $_ })
+        Add-CdWantedDrives -DriveIds $kept
+        # The engine is only needed while something is mounted.
+        if ((Get-CdMountedDrives).Count -eq 0) { Stop-CdEngine }
     }
-    # The engine is only needed while something is mounted.
-    if ((Get-CdMountedDrives).Count -eq 0) { Stop-CdEngine }
+    finally {
+        Exit-CdLock -Mutex $lock
+    }
     @($results | Where-Object { $_.Code -ne 'CD-0002' })
 }
 

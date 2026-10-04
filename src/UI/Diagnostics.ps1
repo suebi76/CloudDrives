@@ -1,7 +1,7 @@
 ﻿# Console screens for the diagnosis ("Diagnose & Hilfe") and the support bundle.
 
 # Order in which automatic fixes run: components and engine first, then drives, sign-ins last.
-$script:CdFixOrder = @('install-winfsp', 'install-rclone', 'protect-home', 'restart-engine', 'connect', 'labels', 'enable-autostart', 'relogin', 'change-client')
+$script:CdFixOrder = @('install-winfsp', 'install-rclone', 'protect-home', 'restart-engine', 'connect', 'labels', 'enable-autostart', 'enable-watchdog', 'relogin', 'change-client')
 
 function Get-CdCheckStyle {
     param([string]$Status)
