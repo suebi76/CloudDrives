@@ -42,6 +42,26 @@ function Get-CdDriveLabel {
     $null
 }
 
+function Sync-CdDriveLabels {
+    # Explorer stores a drive renamed there in the same place CloudDrives writes the name to. Such a name is the
+    # user's latest choice: CloudDrives adopts it instead of overwriting it when it connects, installs or
+    # updates. Returns the adopted renames.
+    $settings = Get-CdSettings
+    $adopted = @(foreach ($drive in @($settings.drives)) {
+            $shown = Get-CdDriveLabel -Drive $drive
+            if ($shown -and $shown.Trim() -and $shown.Trim() -cne [string]$drive.label) {
+                $previous = [string]$drive.label
+                $drive.label = $shown.Trim()
+                [pscustomobject]@{ Drive = $drive; Previous = $previous }
+            }
+        })
+    if ($adopted.Count -gt 0) {
+        Save-CdSettings -Settings $settings
+        foreach ($item in $adopted) { Write-CdLog -Component 'Explorer' -Message "Drive '$($item.Drive.id)' was renamed in Explorer; CloudDrives adopted the name." }
+    }
+    $adopted
+}
+
 function Remove-CdDriveLabel {
     param([Parameter(Mandatory)][System.Collections.IDictionary]$Drive)
     foreach ($key in @((Get-CdExplorerKey -Drive $Drive), (Get-CdDriveIconKey -Drive $Drive))) {

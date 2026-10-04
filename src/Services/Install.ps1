@@ -163,6 +163,8 @@ function Install-CdApplication {
         Stop-CdTray
         [void](Start-CdTrayProcess -SrcRoot (Join-Path $target 'src'))
     }
+    # Names given in Explorer are adopted first, so re-pointing the icons never overwrites them.
+    try { [void](Sync-CdDriveLabels) } catch { Write-CdLog -Level WARN -Component 'Install' -Message "Explorer names: $($_.Exception.Message)" }
     foreach ($drive in @((Get-CdSettings).drives)) { Set-CdDriveLabel -Drive $drive -AppRoot $target }
 
     $version = [string](Get-CdManifestVersion -Path (Join-Path $target 'src\CloudDrives.psd1'))

@@ -111,6 +111,8 @@ function Send-CdWatchdogSummary {
 function Invoke-CdWatchdog {
     # One watchdog cycle. Returns @{ Status = idle|busy|offline|ok|failed; EngineRestarted; Results }.
     $result = [pscustomobject]@{ Status = 'idle'; EngineRestarted = $false; Results = @() }
+    # Drives renamed in Explorer: adopt the new names soon, so the menu and the symbol show them too.
+    try { [void](Sync-CdDriveLabels) } catch { Write-CdLog -Level DEBUG -Component 'Watchdog' -Message "Explorer names: $($_.Exception.Message)" }
     $wanted = @(Get-CdWantedDrives)
     $drives = @((Get-CdSettings).drives | Where-Object { $wanted -contains $_.id })
     if ($drives.Count -eq 0) { return $result }

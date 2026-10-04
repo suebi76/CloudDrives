@@ -74,8 +74,8 @@ Describe 'Documentation' {
         $manifest = [IO.File]::ReadAllText((Join-Path $script:SrcRoot 'CloudDrives.psd1'))
         $version = [regex]::Match($manifest, "ModuleVersion\s*=\s*'([0-9.]+)'").Groups[1].Value
         $notes = & (Join-Path $script:RepoRoot 'tools\Get-ReleaseNotes.ps1') -Version $version
-        $notes | Should -Match '### Added'
-        $notes | Should -Not -Match '^## \['
+        $notes | Should -Match '(?m)^### (Added|Changed|Deprecated|Removed|Fixed|Security)$'
+        $notes | Should -Not -Match '(?m)^## \['
     }
 }
 

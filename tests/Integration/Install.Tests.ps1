@@ -77,6 +77,32 @@ Describe 'Install, update and uninstall' {
         }
     }
 
+    It 'keeps a drive name given in Explorer when installing again' {
+        InModuleScope CloudDrives {
+            # A drive id no real drive uses: the Explorer key is per user, not per data folder.
+            $drive = [ordered]@{ id = 'cd-install-names-test'; account = 'acc'; label = 'Alt'; letter = 'Z'; path = ''; encrypted = $false; autoConnect = $false; readOnly = $false }
+            $settings = Get-CdSettings
+            $settings.accounts = @([ordered]@{ id = 'acc'; provider = 'onedrive'; kind = 'personal'; label = 'Acc' })
+            $settings.drives = @($drive)
+            Save-CdSettings -Settings $settings
+            $key = Get-CdExplorerKey -Drive $drive
+            [void](New-Item -Path $key -Force)
+            Set-ItemProperty -LiteralPath $key -Name '_LabelFromReg' -Value 'Im Explorer umbenannt'
+            try {
+                (Install-CdApplication).Success | Should -BeTrue
+                (Get-CdSettings -Reload).drives[0].label | Should -Be 'Im Explorer umbenannt'
+                Get-CdDriveLabel -Drive (Get-CdSettings).drives[0] | Should -Be 'Im Explorer umbenannt'
+            }
+            finally {
+                Remove-CdDriveLabel -Drive $drive
+                $settings = Get-CdSettings -Reload
+                $settings.drives = @()
+                $settings.accounts = @()
+                Save-CdSettings -Settings $settings
+            }
+        }
+    }
+
     It 'runs the installed copy' {
         $bat = Join-Path $env:CLOUDDRIVES_INSTALL_DIR 'CloudDrives.bat'
         $output = & $bat version "--home=$($script:TestHome)"

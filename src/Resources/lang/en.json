@@ -97,7 +97,7 @@
   "doctor.driveManual": "not connected (not connected automatically)",
   "doctor.driveLetterTaken": "{0} is taken by another drive",
   "doctor.driveLabel": "Explorer name missing",
-  "doctor.driveLabelDiffers": "Explorer shows \"{0}\", CloudDrives calls it \"{1}\" - rename it under Manage drives or align it here",
+  "doctor.driveLabelDiffers": "renamed in Explorer to \"{0}\" (was \"{1}\") - CloudDrives adopts the name",
   "doctor.logs": "Log",
   "doctor.logsOk": "no errors during the last {0} days",
   "doctor.logsCode": "{0}x {1} (last {2})",
