@@ -90,6 +90,8 @@ function Start-CdConsoleMenu {
         Wait-CdKeyPress
     }
 
+    # Drives renamed in Explorer keep their names in the menu as well.
+    try { [void](Sync-CdDriveLabels) } catch { Write-CdLog -Level DEBUG -Component 'Menu' -Message "Explorer names: $($_.Exception.Message)" }
     # The status symbol belongs to CloudDrives (it may have been hidden earlier in this session).
     try { if ((Get-CdTray).Enabled) { [void](Start-CdTrayProcess -SrcRoot (Get-CdPreferredSrcRoot)) } }
     catch { Write-CdLog -Level DEBUG -Component 'Menu' -Message "Tray start: $($_.Exception.Message)" }

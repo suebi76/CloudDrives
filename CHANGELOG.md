@@ -3,6 +3,15 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.2.1] – 2026-10-04
+
+### Fixed
+
+- Drives renamed in Explorer keep their names. Explorer stores such a name where CloudDrives sets the drive name,
+  and CloudDrives used to overwrite it when connecting, installing or updating. Now it adopts the name: when
+  connecting, installing or updating, when the menu opens and every 5 minutes through the watchdog. The diagnosis
+  shows such a rename as information instead of offering to undo it.
+
 ## [0.2.0] – 2026-10-04
 
 ### Added

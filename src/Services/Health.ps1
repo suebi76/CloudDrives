@@ -336,7 +336,8 @@ function Get-CdDriveChecks {
             $checks.Add((New-CdCheck -Area 'drives' -Name $name -Status 'warn' -Fix 'labels' -Target $drive.id -Message (Get-CdText 'doctor.driveLabel')))
         }
         elseif ($shown -cne [string]$drive.label) {
-            $checks.Add((New-CdCheck -Area 'drives' -Name $name -Status 'warn' -Fix 'labels' -Target $drive.id -Message (Get-CdText 'doctor.driveLabelDiffers' $shown, $drive.label)))
+            # Renamed in Explorer: no problem, CloudDrives adopts the name (Sync-CdDriveLabels).
+            $checks.Add((New-CdCheck -Area 'drives' -Name $name -Status 'info' -Target $drive.id -Message (Get-CdText 'doctor.driveLabelDiffers' $shown, $drive.label)))
         }
     }
     $checks.ToArray()

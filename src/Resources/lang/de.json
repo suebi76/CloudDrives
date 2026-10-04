@@ -97,7 +97,7 @@
   "doctor.driveManual": "nicht verbunden (wird nicht automatisch verbunden)",
   "doctor.driveLetterTaken": "{0} ist von einem anderen Laufwerk belegt",
   "doctor.driveLabel": "Name im Explorer fehlt",
-  "doctor.driveLabelDiffers": "Explorer zeigt „{0}“, CloudDrives nennt es „{1}“ – umbenennen unter Laufwerke verwalten oder hier angleichen",
+  "doctor.driveLabelDiffers": "im Explorer umbenannt in „{0}“ (bisher „{1}“) – CloudDrives übernimmt den Namen",
   "doctor.logs": "Protokoll",
   "doctor.logsOk": "keine Fehler in den letzten {0} Tagen",
   "doctor.logsCode": "{0}× {1} (zuletzt {2})",

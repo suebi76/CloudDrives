@@ -178,11 +178,12 @@ Describe 'Diagnosis' {
             }
         }
 
-        It 'shows both names when Explorer shows another name' {
+        It 'reports a rename in Explorer as information without undoing it' {
             InModuleScope CloudDrives {
                 Mock Get-CdDriveLabel { 'GW-Tresor' }
-                $label = @(Get-CdDriveChecks) | Where-Object { $_.Target -eq 'gw' -and $_.Fix -eq 'labels' }
-                $label.Message | Should -Be (Get-CdText 'doctor.driveLabelDiffers' 'GW-Tresor', 'Schule')
+                $label = @(Get-CdDriveChecks) | Where-Object { $_.Target -eq 'gw' -and $_.Message -eq (Get-CdText 'doctor.driveLabelDiffers' 'GW-Tresor', 'Schule') }
+                $label.Status | Should -Be 'info'
+                $label.Fix | Should -BeNullOrEmpty
             }
         }
     }

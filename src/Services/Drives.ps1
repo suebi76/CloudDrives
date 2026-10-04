@@ -170,6 +170,11 @@ function Mount-CdDrive {
     if (-not (Wait-CdDriveReady -MountPoint $mountPoint)) {
         throw (New-CdException -Code 'CD-4002' -Detail "$mountPoint did not become ready")
     }
+    # A name given in Explorer wins; only then the name (unchanged or adopted) and the icon are set.
+    if (@(Sync-CdDriveLabels).Count -gt 0) {
+        $current = Get-CdDrive -Id $Drive.id
+        if ($current) { $Drive = $current }
+    }
     Set-CdDriveLabel -Drive $Drive
     Write-CdLog -Component 'Drives' -Message "Drive '$($Drive.id)' connected as $mountPoint."
     New-CdResult -Message (Get-CdText 'drive.connected' $Drive.label, $mountPoint) -Data $Drive
