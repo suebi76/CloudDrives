@@ -53,6 +53,7 @@ Describe 'Configuring a sign-in step by step' {
             $script:TestOutput = $null
             $script:TestPolls = 0
             $script:TestSigningIn = $false
+            $script:TestSignInPolls = 1000
             $script:TestJobError = $null
             $script:TestUrls = New-Object System.Collections.Generic.List[string]
             Mock Invoke-CdRc {
@@ -72,7 +73,10 @@ Describe 'Configuring a sign-in step by step' {
                         return [pscustomobject]@{ finished = $true; success = $true; output = $script:TestOutput }
                     }
                     'config/oauthstatus' {
-                        if ($script:TestSigningIn) { return [pscustomobject]@{ status = 'running'; authUrl = 'http://127.0.0.1:53682/auth?state=test' } }
+                        if ($script:TestSigningIn -and $script:TestSignInPolls -gt 0) {
+                            $script:TestSignInPolls--
+                            return [pscustomobject]@{ status = 'running'; authUrl = 'http://127.0.0.1:53682/auth?state=test' }
+                        }
                         return [pscustomobject]@{ status = 'stopped' }
                     }
                     'config/oauthstop' { $script:TestSigningIn = $false; return $null }
@@ -81,6 +85,9 @@ Describe 'Configuring a sign-in step by step' {
                 }
             }
             Mock Remove-CdRemoteIfPresent { }
+            # Microsoft Graph is not asked in these tests; the drives come in the order rclone offers them.
+            Mock Get-CdOneDriveOwnDriveId { $null }
+            $script:TestProgress = New-Object System.Collections.Generic.List[string]
             Mock Start-Sleep { }
             $script:TestAnswers = (Get-CdProvider -Id 'onedrive').ConfigAnswers
         }
@@ -230,12 +237,100 @@ Describe 'Configuring a sign-in step by step' {
         }
     }
 
+    It 'reports its progress: the browser, the sign-in received, further attempts, and that it keeps working' {
+        InModuleScope CloudDrives {
+            # The browser sign-in takes two polls; rclone then goes on while its sign-in web server has stopped.
+            $script:TestPolls = 4
+            $script:TestSigningIn = $true
+            $script:TestSignInPolls = 2
+            $script:TestFailing = @('drive-a')
+            Invoke-CdOAuthRemoteCreate -RemoteName 'cd-od' -RcloneType 'onedrive' -Answers $script:TestAnswers -OnAuthUrl { } `
+                -OnProgress { param([string]$Status) $script:TestProgress.Add($Status) }
+            @($script:TestProgress | Where-Object { $_ }) | Should -Be @(
+                (Get-CdText 'progress.browser'), (Get-CdText 'progress.setup'), (Get-CdText 'progress.setupRetry' 2))
+            @($script:TestProgress | Where-Object { -not $_ }).Count | Should -BeGreaterThan 2
+        }
+    }
+
+    It 'notices the end of the browser sign-in also when the step ends right after it' {
+        InModuleScope CloudDrives {
+            $script:TestPolls = 1
+            $script:TestSigningIn = $true
+            Invoke-CdOAuthRemoteCreate -RemoteName 'cd-od' -RcloneType 'onedrive' -Answers $script:TestAnswers -OnAuthUrl { } `
+                -OnProgress { param([string]$Status) $script:TestProgress.Add($Status) }
+            @($script:TestProgress | Where-Object { $_ }) | Should -Be @((Get-CdText 'progress.browser'), (Get-CdText 'progress.setup'))
+        }
+    }
+
+    It 'keeps going when the progress display fails' {
+        InModuleScope CloudDrives {
+            $script:TestPolls = 2
+            $script:TestSigningIn = $true
+            Invoke-CdOAuthRemoteCreate -RemoteName 'cd-od' -RcloneType 'onedrive' -Answers $script:TestAnswers -OnProgress { throw 'display broken' }
+            $script:TestCalls.Count | Should -Be 4
+        }
+    }
+
     It 'reports a failed step with its classified error' {
         InModuleScope CloudDrives {
             $script:TestJobError = 'config failed to refresh token: oauth2: cannot fetch token: 400 Bad Request'
             try { Invoke-CdOAuthRemoteCreate -RemoteName 'cd-od' -RcloneType 'onedrive' -Answers $script:TestAnswers; throw 'expected an error' }
             catch { Get-CdErrorCode $_ | Should -Be 'CD-3008' }
             Should -Invoke Remove-CdRemoteIfPresent -Times 1 -Exactly
+        }
+    }
+}
+
+Describe 'Signing in to OneDrive' {
+    BeforeEach {
+        InModuleScope CloudDrives {
+            $script:TestCalls = New-Object System.Collections.Generic.List[string]
+            $script:TestDrives = @(
+                [pscustomobject]@{ Value = 'b!stale-1'; Help = 'OneDrive (personal)' }
+                [pscustomobject]@{ Value = 'b!stale-2'; Help = 'OneDrive (personal)' }
+                [pscustomobject]@{ Value = 'A669B4226F7C'; Help = 'OneDrive (personal)' }
+            )
+            Mock Invoke-CdRc {
+                switch ($Command) {
+                    { $_ -in 'config/create', 'config/update' } {
+                        $state = [string]$Body.opt.state
+                        $script:TestCalls.Add("$state=$([string]$Body.opt.result)")
+                        $option = $null
+                        $next = ''
+                        switch ($state) {
+                            '' { $next = 'choose_type_done'; $option = [pscustomobject]@{ Name = 'config_type'; Default = 'onedrive'; DefaultStr = 'onedrive'; Examples = @() } }
+                            'choose_type_done' { $next = 'driveid_final'; $option = [pscustomobject]@{ Name = 'config_driveid'; Default = 'b!stale-1'; DefaultStr = 'b!stale-1'; Examples = $script:TestDrives } }
+                            'driveid_final' { $next = 'driveid_final_end'; $option = [pscustomobject]@{ Name = 'config_drive_ok'; Default = $true; DefaultStr = 'true'; Examples = @() } }
+                        }
+                        $script:TestOutput = [pscustomobject]@{ State = $next; Option = $option; Error = ''; Result = '' }
+                        return [pscustomobject]@{ jobid = $script:TestCalls.Count }
+                    }
+                    'job/status' { return [pscustomobject]@{ finished = $true; success = $true; output = $script:TestOutput } }
+                    'config/oauthstatus' { return [pscustomobject]@{ status = 'stopped' } }
+                    'config/get' { return [pscustomobject]@{ type = 'onedrive'; token = '{"access_token":"tok-1"}' } }
+                    default { throw "unexpected RC call $Command" }
+                }
+            }
+            Mock Remove-CdRemoteIfPresent { }
+            Mock Start-Sleep { }
+        }
+    }
+
+    It 'takes the user''s own drive (Graph /me/drive) first instead of stale drives rclone also offers' {
+        InModuleScope CloudDrives {
+            Mock Invoke-CdApiGet { [pscustomobject]@{ id = 'a669b4226f7c' } }
+            Invoke-CdOAuthRemoteCreate -RemoteName 'cd-od' -RcloneType 'onedrive' -Answers (Get-CdProvider -Id 'onedrive').ConfigAnswers
+            $script:TestCalls.ToArray() | Should -Be @('=', 'choose_type_done=onedrive', 'driveid_final=A669B4226F7C', 'driveid_final_end=true')
+            Should -Invoke Invoke-CdApiGet -Times 1 -Exactly -ParameterFilter { $Uri -like 'https://graph.microsoft.com/v1.0/me/drive*' -and $AccessToken -eq 'tok-1' }
+        }
+    }
+
+    It 'falls back to the order rclone offers when Graph cannot name the own drive' {
+        InModuleScope CloudDrives {
+            Mock Invoke-CdApiGet { throw (New-CdException -Code 'CD-5001' -Detail 'GET /me/drive: HTTP 503') }
+            Get-CdOneDriveOwnDriveId -RemoteName 'cd-od' | Should -BeNullOrEmpty
+            Invoke-CdOAuthRemoteCreate -RemoteName 'cd-od' -RcloneType 'onedrive' -Answers (Get-CdProvider -Id 'onedrive').ConfigAnswers
+            $script:TestCalls[2] | Should -Be 'driveid_final=b!stale-1'
         }
     }
 }
@@ -254,12 +349,71 @@ Describe 'Answers to rclone''s questions' {
         }
     }
 
+    It 'takes a given value first, whatever its case, when it is offered' {
+        InModuleScope CloudDrives {
+            $option = [pscustomobject]@{ Name = 'config_driveid'; Examples = @(
+                    [pscustomobject]@{ Value = 'b!stale'; Help = 'OneDrive (personal)' }
+                    [pscustomobject]@{ Value = 'A669B4226F7C'; Help = 'OneDrive (personal)' }
+                ) }
+            Get-CdUntriedChoice -Option $option -Context @{} -First 'a669b4226f7c' -Prefer '\((personal|business)\)$' | Should -Be 'A669B4226F7C'
+            Get-CdUntriedChoice -Option $option -Context @{} -First 'not-offered' -Prefer '\((personal|business)\)$' | Should -Be 'b!stale'
+        }
+    }
+
     It 'gives every provider an answer for the questions rclone asks it after the sign-in' {
         InModuleScope CloudDrives {
             (Get-CdProvider -Id 'onedrive').ConfigAnswers.config_type | Should -Be 'onedrive'
             (Get-CdProvider -Id 'onedrive').ConfigAnswers.config_drive_ok | Should -Be 'true'
             (Get-CdProvider -Id 'drive').ConfigAnswers.config_shared_client_id | Should -Be 'true'
             (Get-CdProvider -Id 'drive').ConfigAnswers.config_change_team_drive | Should -Be 'false'
+        }
+    }
+}
+
+Describe 'Progress display' {
+    AfterEach {
+        InModuleScope CloudDrives { Complete-CdProgress }
+    }
+
+    It 'shows seconds, and minutes from a minute on' {
+        InModuleScope CloudDrives {
+            Format-CdElapsed -Elapsed ([TimeSpan]::FromSeconds(5.7)) | Should -Be '5 s'
+            Format-CdElapsed -Elapsed ([TimeSpan]::FromSeconds(65)) | Should -Be '1:05 min'
+        }
+    }
+
+    It 'redraws one line in a console window and removes it afterwards' {
+        InModuleScope CloudDrives {
+            $script:TestHost = New-Object System.Collections.Generic.List[string]
+            Mock Test-CdLiveConsole { $true }
+            Mock Write-Host { $script:TestHost.Add([string]$Object) }
+            Write-CdProgress -Text 'Step one'
+            Write-CdProgress
+            Write-CdProgress -Text 'Two'
+            $script:TestHost.Count | Should -Be 3
+            foreach ($line in $script:TestHost) { $line | Should -Match '^\r  [|/\\-] ' }
+            $script:TestHost[0] | Should -Match 'Step one'
+            # A shorter text overwrites the rest of the longer one.
+            $script:TestHost[2] | Should -Match 'Two\s{5,}$'
+            Complete-CdProgress
+            $script:TestHost[3] | Should -Match '^\r\s+\r$'
+            Write-CdProgress
+            $script:TestHost.Count | Should -Be 4
+        }
+    }
+
+    It 'writes each step as a line of its own where a line cannot be redrawn' {
+        InModuleScope CloudDrives {
+            Mock Test-CdLiveConsole { $false }
+            Mock Write-CdInfo { }
+            Mock Write-Host { }
+            Write-CdProgress -Text 'Step one'
+            Write-CdProgress
+            Write-CdProgress
+            Write-CdProgress -Text 'Step two'
+            Complete-CdProgress
+            Should -Invoke Write-CdInfo -Times 2 -Exactly
+            Should -Invoke Write-Host -Times 0 -Exactly
         }
     }
 }

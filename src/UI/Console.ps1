@@ -5,6 +5,9 @@ $script:CdDotOn = [string][char]0x25CF
 $script:CdDotOff = [string][char]0x25CB
 $script:CdCheck = [string][char]0x2713
 $script:CdCross = [string][char]0x2717
+# The status line of a long operation (Write-CdProgress) and the length it was last drawn with.
+$script:CdProgress = $null
+$script:CdLiveLength = 0
 
 function Initialize-CdConsole {
     try { [Console]::OutputEncoding = [Text.Encoding]::UTF8 } catch { Write-CdLog -Level DEBUG -Component 'UI' -Message 'Console encoding could not be set.' }
@@ -49,6 +52,53 @@ function Write-CdFail {
     param([string]$Text)
     Write-Host ('  ' + $script:CdCross + ' ') -ForegroundColor Red -NoNewline
     Write-Host $Text
+}
+
+function Test-CdLiveConsole {
+    # True when the output goes to a console window that can redraw a line (not redirected into a file or pipe).
+    try { return ($Host.Name -eq 'ConsoleHost' -and -not [Console]::IsOutputRedirected) } catch { return $false }
+}
+
+function Format-CdElapsed {
+    # "12 s" below a minute, "1:05 min" from a minute on.
+    param([TimeSpan]$Elapsed)
+    $seconds = [int][Math]::Floor($Elapsed.TotalSeconds)
+    if ($seconds -lt 60) { return "$seconds s" }
+    '{0}:{1:00} min' -f [int][Math]::Floor($seconds / 60), ($seconds % 60)
+}
+
+function Write-CdProgress {
+    # Status line of a long operation: the current step, a turning bar and how long the step has taken so far, so
+    # it is visible that CloudDrives is still working. A text starts a new step; a call without text redraws the
+    # line. Without a console window that can redraw a line, each step is written as a line of its own.
+    param([AllowNull()][AllowEmptyString()][string]$Text)
+    $live = Test-CdLiveConsole
+    if ($Text) {
+        $script:CdProgress = @{ Text = $Text; Watch = [Diagnostics.Stopwatch]::StartNew(); Frame = 0 }
+        if (-not $live) { Write-CdInfo -Text $Text -Color DarkGray; return }
+    }
+    if (-not $script:CdProgress -or -not $live) { return }
+    $progress = $script:CdProgress
+    $bar = @('|', '/', '-', '\')[$progress.Frame % 4]
+    $progress.Frame++
+    # The time appears from the first second on; a short step shows none instead of a "0 s" that never changes.
+    $line = '  {0} {1}' -f $bar, $progress.Text
+    if ($progress.Watch.Elapsed.TotalSeconds -ge 1) { $line += ' ' + (Format-CdElapsed -Elapsed $progress.Watch.Elapsed) }
+    $width = 80
+    try { $width = [Console]::WindowWidth } catch { $width = 80 }
+    if ($line.Length -ge $width) { $line = $line.Substring(0, [Math]::Max(1, $width - 1)) }
+    $padding = ' ' * [Math]::Max(0, $script:CdLiveLength - $line.Length)
+    Write-Host ("`r" + $line + $padding) -NoNewline -ForegroundColor Cyan
+    $script:CdLiveLength = $line.Length
+}
+
+function Complete-CdProgress {
+    # Removes the status line, so whatever follows is written where it stood.
+    if ($script:CdProgress -and $script:CdLiveLength -gt 0 -and (Test-CdLiveConsole)) {
+        Write-Host ("`r" + (' ' * $script:CdLiveLength) + "`r") -NoNewline
+    }
+    $script:CdProgress = $null
+    $script:CdLiveLength = 0
 }
 
 function Format-CdShort {

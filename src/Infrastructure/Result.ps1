@@ -20,6 +20,15 @@ function New-CdResult {
     }
 }
 
+function Send-CdProgress {
+    # Reports the progress of a long operation to the caller's $OnProgress: a text starts a new step, a call
+    # without text only shows that the work goes on. A failing display never stops the work.
+    param([scriptblock]$OnProgress, [string]$Text = '')
+    if (-not $OnProgress) { return }
+    try { & $OnProgress $Text }
+    catch { Write-CdLog -Level DEBUG -Component 'UI' -Message "Progress display failed: $($_.Exception.Message)" }
+}
+
 function New-CdException {
     param(
         [Parameter(Mandatory)][string]$Code,

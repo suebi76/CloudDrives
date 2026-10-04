@@ -17,6 +17,9 @@ function Invoke-CdOAuthRemoteCreate {
         [System.Collections.IDictionary]$Answers = @{},
         [scriptblock]$OnAuthUrl,
         [scriptblock]$ShouldCancel,
+        # Gets a status text when a step begins (waiting for the browser, setting up the account) and is called
+        # without text about twice a second while CloudDrives waits, so the display can show it is still working.
+        [scriptblock]$OnProgress,
         [int]$TimeoutSec = 600,
         [int]$MaxSteps = 30
     )
@@ -27,8 +30,12 @@ function Invoke-CdOAuthRemoteCreate {
     foreach ($key in $Parameters.Keys) { $allParameters[$key] = $Parameters[$key] }
     foreach ($key in $signIn.Keys) { $allParameters[$key] = $signIn[$key] }
 
-    $job = @{ RemoteName = $RemoteName; Deadline = (Get-Date).AddSeconds($TimeoutSec); Progress = @{ UrlDelivered = $false }; OnAuthUrl = $OnAuthUrl; ShouldCancel = $ShouldCancel }
-    $context = @{ Tried = @{}; LastError = $null }
+    $job = @{
+        RemoteName = $RemoteName; Deadline = (Get-Date).AddSeconds($TimeoutSec); Progress = @{ UrlDelivered = $false; SignedIn = $false }
+        OnAuthUrl = $OnAuthUrl; ShouldCancel = $ShouldCancel; OnProgress = $OnProgress
+    }
+    # Shared with the providers' answers: the remote being configured, the values tried, rclone's last error.
+    $context = @{ RemoteName = $RemoteName; Tried = @{}; LastError = $null; Errors = 0 }
     $asked = @{}
     Write-CdLog -Component 'Accounts' -Message "OAuth configuration of '$RemoteName' started."
     try {
@@ -38,7 +45,9 @@ function Invoke-CdOAuthRemoteCreate {
             $result = [string]$out.Result
             if ($out.Error) {
                 $context.LastError = [string]$out.Error
+                $context.Errors++
                 Write-CdLog -Level WARN -Component 'Accounts' -Message "Configuring '$RemoteName', rclone reports: $($context.LastError)"
+                Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.setupRetry' ($context.Errors + 1))
             }
             if ($out.Option) {
                 # The same question again means the previous answer failed: a few attempts, then the last error.
@@ -65,7 +74,7 @@ function Invoke-CdOAuthRemoteCreate {
 function Invoke-CdConfigJob {
     # Runs one step of rclone's configuration as an asynchronous job and returns its output: the next question,
     # an error rclone reports, or an empty state when the configuration is complete. A browser sign-in the step
-    # starts goes to $OnAuthUrl; $ShouldCancel and the deadline stop the step.
+    # starts goes to $OnAuthUrl, its progress to $OnProgress; $ShouldCancel and the deadline stop the step.
     param(
         [Parameter(Mandatory)][string]$Command,
         [Parameter(Mandatory)][System.Collections.IDictionary]$Body,
@@ -73,20 +82,24 @@ function Invoke-CdConfigJob {
         [Parameter(Mandatory)][datetime]$Deadline,
         [Parameter(Mandatory)][hashtable]$Progress,
         [scriptblock]$OnAuthUrl,
-        [scriptblock]$ShouldCancel
+        [scriptblock]$ShouldCancel,
+        [scriptblock]$OnProgress
     )
     $jobId = [int](Invoke-CdRc -Command $Command -Body $Body).jobid
     Write-CdLog -Level DEBUG -Component 'Accounts' -Message "Configuring '$RemoteName': $Command runs as job $jobId."
     while ($true) {
         $status = Invoke-CdRc -Command 'job/status' -Body @{ jobid = $jobId }
         if ($status.finished) { break }
-        if (-not $Progress.UrlDelivered) {
+        if (-not $Progress.SignedIn) {
             $oauth = $null
             try { $oauth = Invoke-CdRc -Command 'config/oauthstatus' } catch { Write-CdLog -Level DEBUG -Component 'Accounts' -Message "oauthstatus: $($_.Exception.Message)" }
-            if ($oauth -and $oauth.status -eq 'running' -and $oauth.authUrl) {
+            if (-not $Progress.UrlDelivered -and $oauth -and $oauth.status -eq 'running' -and $oauth.authUrl) {
                 $Progress.UrlDelivered = $true
                 if ($OnAuthUrl) { & $OnAuthUrl ([string]$oauth.authUrl) }
+                Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.browser')
             }
+            # rclone's sign-in web server stops once the browser has delivered the sign-in.
+            elseif ($Progress.UrlDelivered -and $oauth -and $oauth.status -ne 'running') { Set-CdSignedIn -Progress $Progress -OnProgress $OnProgress }
         }
         $cancelled = $false
         if ($ShouldCancel) { $cancelled = [bool](& $ShouldCancel) }
@@ -95,8 +108,10 @@ function Invoke-CdConfigJob {
             if ($cancelled) { throw (New-CdException -Code 'CD-3004') }
             throw (New-CdException -Code 'CD-3005')
         }
+        Send-CdProgress -OnProgress $OnProgress
         Start-Sleep -Milliseconds 500
     }
+    if ($Progress.UrlDelivered -and -not $Progress.SignedIn -and $status.success) { Set-CdSignedIn -Progress $Progress -OnProgress $OnProgress }
     if (-not $status.success) {
         $text = [string]$status.error
         $code = Resolve-CdErrorCode -Text $text
@@ -104,6 +119,14 @@ function Invoke-CdConfigJob {
         throw (New-CdException -Code $code -Detail $text)
     }
     $status.output
+}
+
+function Set-CdSignedIn {
+    # Notes that the browser sign-in is done: rclone now fetches the token and sets up the remote.
+    param([Parameter(Mandatory)][hashtable]$Progress, [scriptblock]$OnProgress)
+    $Progress.SignedIn = $true
+    Write-CdLog -Component 'Accounts' -Message 'Browser sign-in received.'
+    Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.setup')
 }
 
 function Stop-CdConfigJob {
@@ -147,22 +170,30 @@ function Get-CdConfigAnswer {
 }
 
 function Get-CdUntriedChoice {
-    # Answers a choice of rclone's configuration with an offered value not tried in this configuration yet, values
-    # whose description matches $Prefer first. rclone asks again when a value fails, so every attempt takes the
-    # next value; $null once all were tried.
-    param([Parameter(Mandatory)][object]$Option, [Parameter(Mandatory)][hashtable]$Context, [string]$Prefer)
+    # Answers a choice of rclone's configuration with an offered value not tried in this configuration yet: $First
+    # (when offered), then values whose description matches $Prefer, then the others. rclone asks again when a
+    # value fails, so every attempt takes the next value; $null once all were tried.
+    param(
+        [Parameter(Mandatory)][object]$Option,
+        [Parameter(Mandatory)][hashtable]$Context,
+        [AllowNull()][AllowEmptyString()][string]$First,
+        [string]$Prefer
+    )
     if (-not $Context.ContainsKey('Tried')) { $Context.Tried = @{} }
     $name = [string]$Option.Name
     if (-not $Context.Tried.ContainsKey($name)) { $Context.Tried[$name] = New-Object System.Collections.Generic.List[string] }
     $tried = $Context.Tried[$name]
+    $firstValues = New-Object System.Collections.Generic.List[string]
     $preferred = New-Object System.Collections.Generic.List[string]
     $others = New-Object System.Collections.Generic.List[string]
     foreach ($example in @($Option.Examples)) {
         $value = [string]$example.Value
         if (-not $value -or $tried.Contains($value)) { continue }
-        if ($Prefer -and [string]$example.Help -match $Prefer) { $preferred.Add($value) } else { $others.Add($value) }
+        if ($First -and [string]::Equals($value, $First, [StringComparison]::OrdinalIgnoreCase)) { $firstValues.Add($value) }
+        elseif ($Prefer -and [string]$example.Help -match $Prefer) { $preferred.Add($value) }
+        else { $others.Add($value) }
     }
-    $candidates = @($preferred) + @($others)
+    $candidates = @($firstValues) + @($preferred) + @($others)
     if ($candidates.Count -eq 0) { return $null }
     $tried.Add($candidates[0])
     $candidates[0]
@@ -289,7 +320,9 @@ function Update-CdAccountLogin {
         [scriptblock]$OnAuthUrl,
         [scriptblock]$ShouldCancel,
         # Called with (identity, account) when the previous identity is unknown; must return $true to go on.
-        [scriptblock]$ConfirmIdentity
+        [scriptblock]$ConfirmIdentity,
+        # Status texts of the steps (see Invoke-CdOAuthRemoteCreate).
+        [scriptblock]$OnProgress
     )
     $account = Get-CdAccount -Id $AccountId
     if (-not $account) { throw (New-CdException -Code 'CD-2006' -Detail "unknown account '$AccountId'") }
@@ -320,8 +353,9 @@ function Update-CdAccountLogin {
     Remove-CdRemoteIfPresent -Name $signIn
     $parameters = & $definition.NewParameters $ClientId $ClientSecret
     [void](Invoke-CdOAuthRemoteCreate -RemoteName $signIn -RcloneType $definition.RcloneType -Parameters $parameters -Answers (Get-CdConfigAnswers -Definition $definition) `
-            -OnAuthUrl $OnAuthUrl -ShouldCancel $ShouldCancel)
+            -OnAuthUrl $OnAuthUrl -ShouldCancel $ShouldCancel -OnProgress $OnProgress)
     try {
+        Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.identity')
         $identity = Get-CdRemoteIdentity -RemoteName $signIn -Provider $account.provider
         if (-not $identity) { throw (New-CdException -Code 'CD-3008' -Detail 'the new sign-in could not be verified') }
         if ($expected -and $identity.Id -ne $expected.Id) {
@@ -368,6 +402,7 @@ function Update-CdAccountLogin {
     Save-CdSettings -Settings $settings
     Write-CdLog -Component 'Accounts' -Message "Account '$AccountId' signed in again (client changed: $clientChanged)."
 
+    Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.reconnect')
     $drives = @(Restart-CdAccountDrives -AccountId $AccountId)
     New-CdResult -Message (Get-CdText 'relogin.done' $account.label) -Data ([pscustomobject]@{
             Account       = $entry
@@ -401,7 +436,9 @@ function Add-CdAccount {
         [string]$ClientId,
         [string]$ClientSecret,
         [scriptblock]$OnAuthUrl,
-        [scriptblock]$ShouldCancel
+        [scriptblock]$ShouldCancel,
+        # Status texts of the steps (see Invoke-CdOAuthRemoteCreate).
+        [scriptblock]$OnProgress
     )
     $definition = Get-CdProvider -Id $Provider
     if (-not $definition) { throw (New-CdException -Code 'CD-2006' -Detail "unknown provider '$Provider'") }
@@ -417,8 +454,9 @@ function Add-CdAccount {
 
     $parameters = & $definition.NewParameters $ClientId $ClientSecret
     [void](Invoke-CdOAuthRemoteCreate -RemoteName $remote -RcloneType $definition.RcloneType -Parameters $parameters -Answers (Get-CdConfigAnswers -Definition $definition) `
-            -OnAuthUrl $OnAuthUrl -ShouldCancel $ShouldCancel)
+            -OnAuthUrl $OnAuthUrl -ShouldCancel $ShouldCancel -OnProgress $OnProgress)
 
+    Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.quota')
     try { $about = Get-CdRemoteAbout -RemoteName $remote -CacheSec 0 }
     catch {
         Remove-CdRemoteIfPresent -Name $remote
@@ -428,6 +466,7 @@ function Add-CdAccount {
     # Remember who signed in, and refuse the same cloud account twice (more folders of one account become
     # additional drives instead).
     $identity = $null
+    Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.identity')
     try { $identity = Get-CdRemoteIdentity -RemoteName $remote -Provider $Provider }
     catch { Write-CdLog -Level WARN -Component 'Accounts' -Message "Identity of the new account unavailable: $((Get-CdErrorInfo $_).Code)" }
     if ($identity) {
