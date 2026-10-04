@@ -154,8 +154,9 @@ function Install-CdApplication {
     $shortcuts = @()
     if (-not $NoShortcuts) { $shortcuts = Install-CdShortcuts -AppRoot $target -Desktop:$Desktop }
 
-    # Autostart and Explorer icons must point to the installed copy from now on.
+    # Autostart, watchdog and Explorer icons must point to the installed copy from now on.
     if ((Get-CdAutostart).Enabled) { [void](Enable-CdAutostart -SrcRoot (Join-Path $target 'src')) }
+    if ((Get-CdWatchdog).Enabled) { [void](Enable-CdWatchdog -SrcRoot (Join-Path $target 'src')) }
     foreach ($drive in @((Get-CdSettings).drives)) { Set-CdDriveLabel -Drive $drive -AppRoot $target }
 
     $version = [string](Get-CdManifestVersion -Path (Join-Path $target 'src\CloudDrives.psd1'))
@@ -170,6 +171,7 @@ function Uninstall-CdApplication {
     try { [void](Invoke-CdDisconnect -Force) } catch { Write-CdLog -Level WARN -Component 'Install' -Message "Disconnect: $($_.Exception.Message)" }
     try { Stop-CdEngine } catch { Write-CdLog -Level WARN -Component 'Install' -Message "Engine stop: $($_.Exception.Message)" }
     [void](Disable-CdAutostart)
+    [void](Disable-CdWatchdog)
     foreach ($drive in @((Get-CdSettings).drives)) { Remove-CdDriveLabel -Drive $drive }
     Remove-CdShortcuts
 

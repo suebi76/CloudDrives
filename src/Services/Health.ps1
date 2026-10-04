@@ -171,9 +171,15 @@ function Get-CdUpdateChecks {
     catch { New-CdCheck -Area 'updates' -Name $name -Status 'skip' -Message (Get-CdText 'doctor.updateFailed') }
 }
 
+$script:CdBootTime = $null
+
 function Get-CdLastBootTime {
-    try { return [datetime](Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).LastBootUpTime }
-    catch { return $null }
+    # When Windows was started (cached: it cannot change while CloudDrives runs).
+    if (-not $script:CdBootTime) {
+        try { $script:CdBootTime = [datetime](Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).LastBootUpTime }
+        catch { return $null }
+    }
+    $script:CdBootTime
 }
 
 function Get-CdEngineChecks {
@@ -372,6 +378,44 @@ function Get-CdPreferredSrcRoot {
     (Get-CdContext).SrcRoot
 }
 
+function Get-CdTaskScriptCheck {
+    # A background task must run an existing CloudDrives - preferably the installed one. Returns a check for
+    # a problem, or $null when the task is fine.
+    param([Parameter(Mandatory)][object]$Task, [Parameter(Mandatory)][string]$Name, [Parameter(Mandatory)][string]$Fix)
+    $arguments = [string]@($Task.Actions)[0].Arguments
+    $script = $null
+    if ($arguments -match '-File\s+(?:"([^"]+)"|(\S+))') { $script = @($Matches[1], $Matches[2]) | Where-Object { $_ } | Select-Object -First 1 }
+    if (-not $script) { return $null }
+    if (-not (Test-Path -LiteralPath $script)) {
+        return (New-CdCheck -Area 'autostart' -Name $Name -Status 'fail' -Fix $Fix -Message (Get-CdText 'doctor.autostartMissing' $script))
+    }
+    $preferred = Join-Path (Get-CdPreferredSrcRoot) 'CloudDrives.ps1'
+    if (-not [string]::Equals([IO.Path]::GetFullPath($script), [IO.Path]::GetFullPath($preferred), [StringComparison]::OrdinalIgnoreCase)) {
+        return (New-CdCheck -Area 'autostart' -Name $Name -Status 'warn' -Fix $Fix -Message (Get-CdText 'doctor.autostartNotInstalled'))
+    }
+    $null
+}
+
+function Get-CdWatchdogChecks {
+    $name = Get-CdText 'doctor.watchdog'
+    if (-not (Get-CdWatchdog).Enabled) {
+        # Without the watchdog a crash or standby leaves the drives disconnected until the next sign-in.
+        if ((Get-CdAutostart).Enabled) { return (New-CdCheck -Area 'autostart' -Name $name -Status 'warn' -Fix 'enable-watchdog' -Message (Get-CdText 'doctor.watchdogOff')) }
+        return (New-CdCheck -Area 'autostart' -Name $name -Status 'info' -Message (Get-CdText 'doctor.watchdogOffInfo'))
+    }
+    $problem = Get-CdTaskScriptCheck -Task (Get-CdWatchdogTask) -Name $name -Fix 'enable-watchdog'
+    if ($problem) { return $problem }
+    $state = Read-CdWatchdogState
+    $waiting = foreach ($key in @($state.Keys)) {
+        $title = Get-CdText "error.$($state[$key].code).title"
+        $drive = Get-CdDrive -Id $key
+        if ($drive) { '{0} {1}' -f "$($drive.letter):", $title }
+        elseif ($key -eq '#engine') { $title }
+    }
+    if (@($waiting).Count -gt 0) { return (New-CdCheck -Area 'autostart' -Name $name -Status 'warn' -Message (Get-CdText 'doctor.watchdogWaiting' (@($waiting) -join '; '))) }
+    New-CdCheck -Area 'autostart' -Name $name -Message (Get-CdText 'doctor.watchdogOk')
+}
+
 function Get-CdAutostartChecks {
     $name = Get-CdText 'doctor.autostart'
     $state = Get-CdAutostart
@@ -379,16 +423,8 @@ function Get-CdAutostartChecks {
     if ($state.Method -ne 'task') { return (New-CdCheck -Area 'autostart' -Name $name -Message (Get-CdText 'doctor.autostartShortcut')) }
 
     $task = Get-CdAutostartTask
-    $arguments = [string]@($task.Actions)[0].Arguments
-    $script = $null
-    if ($arguments -match '-File\s+(?:"([^"]+)"|(\S+))') { $script = @($Matches[1], $Matches[2]) | Where-Object { $_ } | Select-Object -First 1 }
-    if ($script -and -not (Test-Path -LiteralPath $script)) {
-        return (New-CdCheck -Area 'autostart' -Name $name -Status 'fail' -Fix 'enable-autostart' -Message (Get-CdText 'doctor.autostartMissing' $script))
-    }
-    $preferred = Join-Path (Get-CdPreferredSrcRoot) 'CloudDrives.ps1'
-    if ($script -and -not [string]::Equals([IO.Path]::GetFullPath($script), [IO.Path]::GetFullPath($preferred), [StringComparison]::OrdinalIgnoreCase)) {
-        return (New-CdCheck -Area 'autostart' -Name $name -Status 'warn' -Fix 'enable-autostart' -Message (Get-CdText 'doctor.autostartNotInstalled'))
-    }
+    $problem = Get-CdTaskScriptCheck -Task $task -Name $name -Fix 'enable-autostart'
+    if ($problem) { return $problem }
     $info = $null
     try { $info = Get-ScheduledTaskInfo -InputObject $task -ErrorAction Stop } catch { Write-CdLog -Level DEBUG -Component 'Doctor' -Message "Task info: $($_.Exception.Message)" }
     # 267011 = the task has not run yet, 267009 = it is running right now.
@@ -414,7 +450,7 @@ function Invoke-CdDoctor {
         accounts   = { Get-CdAccountChecks }
         drives     = { Get-CdDriveChecks }
         logs       = { Get-CdLogChecks }
-        autostart  = { Get-CdAutostartChecks }
+        autostart  = { Get-CdAutostartChecks; Get-CdWatchdogChecks }
     }
     $checks = New-Object System.Collections.Generic.List[object]
     $engineWasRunning = Test-CdEngineRunning
@@ -489,6 +525,7 @@ function Invoke-CdDoctorFix {
             return (New-CdResult -Message (Get-CdText 'doctor.fixed.home'))
         }
         'enable-autostart' { return (Enable-CdAutostart -SrcRoot (Get-CdPreferredSrcRoot)) }
+        'enable-watchdog' { return (Enable-CdWatchdog -SrcRoot (Get-CdPreferredSrcRoot)) }
         default { throw (New-CdException -Code 'CD-9001' -Detail "no automatic fix '$($Check.Fix)'") }
     }
 }

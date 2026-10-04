@@ -209,19 +209,26 @@ function Restart-CdAccountDrives {
     # Reconnects the mounted drives of an account (including its vaults), e.g. after a new sign-in, so they
     # use the new credentials. Uploads still pending stay in the cache and continue after reconnecting.
     param([Parameter(Mandatory)][string]$AccountId)
-    $mounted = Get-CdMountedDrives
-    $results = foreach ($drive in @((Get-CdSettings).drives | Where-Object { $_.account -eq $AccountId })) {
-        if (-not $mounted.ContainsKey("$($drive.letter):".ToUpperInvariant())) { continue }
-        try {
-            [void](Dismount-CdDrive -Drive $drive -Force)
-            [void](Wait-CdDriveLetterFree -Letter ([string]$drive.letter))
-            Mount-CdDrive -Drive $drive
+    # The watchdog must not step in while a drive is briefly disconnected.
+    $lock = Enter-CdLock -Name 'connect' -TimeoutSec 180
+    try {
+        $mounted = Get-CdMountedDrives
+        $results = foreach ($drive in @((Get-CdSettings).drives | Where-Object { $_.account -eq $AccountId })) {
+            if (-not $mounted.ContainsKey("$($drive.letter):".ToUpperInvariant())) { continue }
+            try {
+                [void](Dismount-CdDrive -Drive $drive -Force)
+                [void](Wait-CdDriveLetterFree -Letter ([string]$drive.letter))
+                Mount-CdDrive -Drive $drive
+            }
+            catch {
+                $info = Get-CdErrorInfo $_
+                Write-CdLog -Level ERROR -Component 'Drives' -Message "Reconnect of '$($drive.id)' failed: $($info.Code) $($info.Detail)"
+                New-CdResult -Success $false -Code $info.Code -Message (Get-CdText 'drive.connectFailed' $drive.label, "$($drive.letter):") -Detail $info.Detail -Data $drive
+            }
         }
-        catch {
-            $info = Get-CdErrorInfo $_
-            Write-CdLog -Level ERROR -Component 'Drives' -Message "Reconnect of '$($drive.id)' failed: $($info.Code) $($info.Detail)"
-            New-CdResult -Success $false -Code $info.Code -Message (Get-CdText 'drive.connectFailed' $drive.label, "$($drive.letter):") -Detail $info.Detail -Data $drive
-        }
+    }
+    finally {
+        Exit-CdLock -Mutex $lock
     }
     @($results)
 }
@@ -231,6 +238,7 @@ function Remove-CdDrive {
     param([Parameter(Mandatory)][string]$Id)
     $drive = Get-CdDrive -Id $Id
     if (-not $drive) { throw (New-CdException -Code 'CD-2006' -Detail "unknown drive '$Id'") }
+    Remove-CdWantedDrives -DriveIds @([string]$drive.id)
     if (Test-CdEngineRunning) {
         try { [void](Dismount-CdDrive -Drive $drive -Force) }
         catch { Write-CdLog -Level WARN -Component 'Drives' -Message "Disconnect of '$($drive.id)' failed: $($_.Exception.Message)" }

@@ -17,6 +17,14 @@ All notable changes to CloudDrives are documented here. The format follows
   - afterwards CloudDrives restarts from the program folder (also after the first installation)
 - Daily update hint after the autostart
 - `uninstall`, optionally including all local sign-ins and settings
+- Watchdog: reconnects the drives after standby, a network change or a crash of the engine
+  - a scheduled task runs a short check every 5 minutes, after waking up and after a network connection
+  - restarts an engine that is gone or no longer responds (a busy engine gets a second chance)
+  - only reconnects drives the user or the autostart connected since the last Windows start; drives the user
+    disconnected stay disconnected
+  - persistent problems are retried after 0, 15, 60 and then 360 minutes and reported once
+  - turned on together with the autostart; own switch in the settings and `watchdog [on|off|status]`
+  - connecting, disconnecting and the watchdog never run at the same time
 - Diagnosis ("Diagnose & Hilfe", `doctor|diagnose [--fix] [--bundle] [--json]`)
   - traffic-light checks of system, components, settings, network, updates, engine, accounts, drives, recent
     errors and autostart, with the explanation of each error code

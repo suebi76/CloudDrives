@@ -33,6 +33,7 @@
     { "code": "CD-3005", "action": null, "patterns": [] },
     { "code": "CD-3009", "action": null, "patterns": [] },
     { "code": "CD-9003", "action": null, "patterns": [] },
+    { "code": "CD-9004", "action": null, "patterns": [] },
     { "code": "CD-3010", "action": null, "patterns": [] },
     { "code": "CD-4002", "action": null, "patterns": [] },
     { "code": "CD-4006", "action": null, "patterns": [] },

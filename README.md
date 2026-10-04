@@ -8,7 +8,7 @@ Grundlage sind [rclone](https://rclone.org) und [WinFsp](https://winfsp.dev). Be
 mit geführten Assistenten. Die Installation läuft automatisch, und Anmeldedaten werden verschlüsselt gespeichert.
 
 > **Status:** in Entwicklung (Version 0.2). Getestet sind Kern, Engine, Laufwerksverwaltung, verschlüsselte Tresore,
-> Autostart sowie Installation und Updates. Diagnose, Watchdog und ein Symbol im Infobereich folgen.
+> Autostart, automatisches Wiederverbinden, Diagnose sowie Installation und Updates. Ein Symbol im Infobereich folgt.
 
 ## Funktionen
 
@@ -19,6 +19,9 @@ mit geführten Assistenten. Die Installation läuft automatisch, und Anmeldedate
   verschlüsselt mit einem Schlüssel in der Windows-Anmeldeinformationsverwaltung
 - **Wie lokale Laufwerke:** Office, Bildbearbeitung und andere Programme arbeiten direkt auf dem Laufwerk.
   Uploads laufen im Hintergrund und werden nach einem Neustart fortgesetzt
+- **Verbindet sich selbst wieder:** Nach Standby, Netzwerkwechsel oder einem Absturz holt der Watchdog die Laufwerke
+  zurück. Er prüft alle 5 Minuten, nach dem Aufwachen und nach Netzwerkwechseln. Laufwerke, die du selbst trennst,
+  bleiben getrennt
 - **Explorer-Integration:** sprechende Namen wie „Google Pro (K:)“ und echte Speicheranzeige
 - **Fehleranalyse:** verständliche Meldungen mit Fehlercode (z. B. `CD-4001`) und konkreter Lösung, ausführliche Protokolle
 - **Keine Admin-Rechte nötig:** Ausnahme ist die einmalige Installation des Treibers WinFsp
@@ -86,6 +89,7 @@ Gestartet wird CloudDrives über das Startmenü. Die Befehle unten gelten für d
 | `CloudDrives.bat neu-anmelden K` | Konto von Laufwerk K: neu anmelden, ohne es zu entfernen |
 | `CloudDrives.bat client-id K` | eigene Google-Client-ID des Kontos ändern |
 | `CloudDrives.bat autostart an` | bei der Windows-Anmeldung automatisch verbinden (`aus` schaltet es ab) |
+| `CloudDrives.bat watchdog an` | nach Standby, Netzwerkwechsel oder Absturz automatisch wieder verbinden (`aus`, `status`) |
 | `CloudDrives.bat aktualisieren` | nach Updates suchen und installieren (`--check` nur prüfen) |
 | `CloudDrives.bat deinstallieren` | CloudDrives von diesem PC entfernen |
 | `CloudDrives.bat hilfe` | alle Befehle |
