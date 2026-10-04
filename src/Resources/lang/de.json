@@ -462,6 +462,8 @@
   "error.CD-3009.fix": "Melde dich mit dem Konto an, das zu diesem Eintrag gehört – im Browser kannst du das Konto wechseln.\nDie bisherige Anmeldung bleibt unverändert.",
   "error.CD-3010.title": "Dieses Konto ist bereits eingerichtet",
   "error.CD-3010.fix": "Weitere Ordner dieses Kontos bindest du unter „Laufwerke verwalten“ als zusätzliches Laufwerk ein.",
+  "error.CD-3011.title": "Einrichtung nach der Anmeldung fehlgeschlagen",
+  "error.CD-3011.fix": "Die Anmeldung im Browser hat geklappt, die Einrichtung danach nicht: Der Anbieter hat eine Abfrage abgelehnt (etwa welche Laufwerke zum Konto gehören) oder rclone hat eine unerwartete Frage gestellt (siehe Details).\nIst es eine Störung beim Anbieter, hilft ein neuer Versuch später. Bleibt der Fehler, erstelle unter „Diagnose & Hilfe“ ein Support-Paket.",
   "error.CD-4001.title": "Laufwerksbuchstabe ist belegt",
   "error.CD-4001.fix": "Wähle einen anderen Buchstaben (z. B. ist ein NAS- oder USB-Laufwerk dort eingebunden).",
   "error.CD-4002.title": "Laufwerk wurde nicht rechtzeitig bereit",

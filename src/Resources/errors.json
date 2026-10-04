@@ -35,6 +35,7 @@
     { "code": "CD-9003", "action": null, "patterns": [] },
     { "code": "CD-9004", "action": null, "patterns": [] },
     { "code": "CD-3010", "action": null, "patterns": [] },
+    { "code": "CD-3011", "action": null, "patterns": ["(?i)serviceReadOnly", "(?i)Database Is Read Only", "(?i)Failed to query (available drives|root for drive)", "(?i)No drives found"] },
     { "code": "CD-4002", "action": null, "patterns": [] },
     { "code": "CD-4006", "action": null, "patterns": [] },
     { "code": "CD-5003", "action": null, "patterns": [] },

@@ -151,6 +151,12 @@ Weitere Ordner dieses Kontos bindest du unter „Laufwerke verwalten“ als zus�
 
 *English: This account is already set up. Add more folders of this account as additional drives under "Manage drives".*
 
+### CD-3011 - Einrichtung nach der Anmeldung fehlgeschlagen
+
+Die Anmeldung im Browser hat geklappt, die Einrichtung danach nicht: Der Anbieter hat eine Abfrage abgelehnt (etwa welche Laufwerke zum Konto gehören) oder rclone hat eine unerwartete Frage gestellt (siehe Details). Ist es eine Störung beim Anbieter, hilft ein neuer Versuch später. Bleibt der Fehler, erstelle unter „Diagnose & Hilfe“ ein Support-Paket.
+
+*English: Setup after the sign-in failed. The sign-in in the browser worked, the setup afterwards did not: the provider refused a request (such as which drives belong to the account) or rclone asked an unexpected question (see the details). If the provider has a disruption, try again later. If the error persists, create a support bundle under "Diagnosis & help".*
+
 ## 4xxx - Laufwerke
 
 ### CD-4001 - Laufwerksbuchstabe ist belegt

@@ -462,6 +462,8 @@
   "error.CD-3009.fix": "Sign in with the account that belongs to this entry - you can switch accounts in the browser.\nThe previous sign-in stays unchanged.",
   "error.CD-3010.title": "This account is already set up",
   "error.CD-3010.fix": "Add more folders of this account as additional drives under \"Manage drives\".",
+  "error.CD-3011.title": "Setup after the sign-in failed",
+  "error.CD-3011.fix": "The sign-in in the browser worked, the setup afterwards did not: the provider refused a request (such as which drives belong to the account) or rclone asked an unexpected question (see the details).\nIf the provider has a disruption, try again later. If the error persists, create a support bundle under \"Diagnosis & help\".",
   "error.CD-4001.title": "Drive letter is in use",
   "error.CD-4001.fix": "Choose a different letter (e.g. a NAS or USB drive already uses it).",
   "error.CD-4002.title": "Drive did not become ready in time",

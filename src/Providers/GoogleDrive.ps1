@@ -65,6 +65,12 @@ Register-CdProvider @{
         }
         $parameters
     }
+    # rclone's questions while signing in: without an own client the user chose rclone's shared one in the wizard,
+    # and the drive is the user's whole Drive, not a shared drive.
+    ConfigAnswers    = @{
+        config_shared_client_id  = 'true'
+        config_change_team_drive = 'false'
+    }
     # Who is signed in: Drive's "about" names the user. The permission ID is stable, the address is shown.
     GetIdentity      = {
         param([object]$SignIn)
