@@ -17,7 +17,7 @@ jobs:
     name: Lint and unit tests (PowerShell 5.1 and 7)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Quality gate
         shell: pwsh
         run: ./tools/Invoke-Build.ps1 -Edition Both
@@ -33,7 +33,7 @@ jobs:
     name: Secret scan (gitleaks)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - uses: gitleaks/gitleaks-action@v3
