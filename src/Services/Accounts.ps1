@@ -199,6 +199,12 @@ function Get-CdUntriedChoice {
     $candidates[0]
 }
 
+function Test-CdPasswordSignIn {
+    # True for providers that sign in with a user name and a password (WebDAV) instead of OAuth in the browser.
+    param([Parameter(Mandatory)][hashtable]$Definition)
+    $Definition.ContainsKey('SignIn') -and $Definition.SignIn -eq 'password'
+}
+
 function Get-CdConfigAnswers {
     # The provider's answers to rclone's configuration questions (empty when it has none).
     param([Parameter(Mandatory)][hashtable]$Definition)
@@ -322,7 +328,9 @@ function Update-CdAccountLogin {
         # Called with (identity, account) when the previous identity is unknown; must return $true to go on.
         [scriptblock]$ConfirmIdentity,
         # Status texts of the steps (see Invoke-CdOAuthRemoteCreate).
-        [scriptblock]$OnProgress
+        [scriptblock]$OnProgress,
+        # Providers that sign in with a password (WebDAV): the new sign-in (New-CdWebDavCredential).
+        [object]$WebDavLogin
     )
     $account = Get-CdAccount -Id $AccountId
     if (-not $account) { throw (New-CdException -Code 'CD-2006' -Detail "unknown account '$AccountId'") }
@@ -351,9 +359,15 @@ function Update-CdAccountLogin {
     }
 
     Remove-CdRemoteIfPresent -Name $signIn
-    $parameters = & $definition.NewParameters $ClientId $ClientSecret
-    [void](Invoke-CdOAuthRemoteCreate -RemoteName $signIn -RcloneType $definition.RcloneType -Parameters $parameters -Answers (Get-CdConfigAnswers -Definition $definition) `
-            -OnAuthUrl $OnAuthUrl -ShouldCancel $ShouldCancel -OnProgress $OnProgress)
+    if (Test-CdPasswordSignIn -Definition $definition) {
+        if (-not $WebDavLogin) { throw (New-CdException -Code 'CD-2006' -Detail "account '$AccountId' needs an address, a user and a password") }
+        New-CdWebDavRemote -RemoteName $signIn -Login $WebDavLogin -OnProgress $OnProgress
+    }
+    else {
+        $parameters = & $definition.NewParameters $ClientId $ClientSecret
+        [void](Invoke-CdOAuthRemoteCreate -RemoteName $signIn -RcloneType $definition.RcloneType -Parameters $parameters -Answers (Get-CdConfigAnswers -Definition $definition) `
+                -OnAuthUrl $OnAuthUrl -ShouldCancel $ShouldCancel -OnProgress $OnProgress)
+    }
     try {
         Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.identity')
         $identity = Get-CdRemoteIdentity -RemoteName $signIn -Provider $account.provider
@@ -374,7 +388,8 @@ function Update-CdAccountLogin {
             # An empty value clears an own client the account no longer uses.
             if ($new.$key -or ($current -and $current.$key)) { $values[$key] = [string]$new.$key }
         }
-        foreach ($key in @('token', 'drive_id', 'drive_type')) {
+        # The password is taken over obscured, as rclone stored it on the temporary remote.
+        foreach ($key in @('token', 'drive_id', 'drive_type', 'user', 'pass')) {
             if ($new.$key) { $values[$key] = [string]$new.$key }
         }
         Backup-CdRcloneConfig
@@ -398,7 +413,7 @@ function Update-CdAccountLogin {
     $settings = Get-CdSettings
     $entry = @($settings.accounts | Where-Object { $_.id -eq $AccountId })[0]
     $entry.identity = [ordered]@{ id = $identity.Id; name = $identity.Name }
-    $entry.clientId = $(if ($values.client_id) { 'own' } else { 'default' })
+    if (-not (Test-CdPasswordSignIn -Definition $definition)) { $entry.clientId = $(if ($values.client_id) { 'own' } else { 'default' }) }
     Save-CdSettings -Settings $settings
     Write-CdLog -Component 'Accounts' -Message "Account '$AccountId' signed in again (client changed: $clientChanged)."
 
@@ -438,7 +453,9 @@ function Add-CdAccount {
         [scriptblock]$OnAuthUrl,
         [scriptblock]$ShouldCancel,
         # Status texts of the steps (see Invoke-CdOAuthRemoteCreate).
-        [scriptblock]$OnProgress
+        [scriptblock]$OnProgress,
+        # Providers that sign in with a password (WebDAV): address, user and password (New-CdWebDavCredential).
+        [object]$WebDavLogin
     )
     $definition = Get-CdProvider -Id $Provider
     if (-not $definition) { throw (New-CdException -Code 'CD-2006' -Detail "unknown provider '$Provider'") }
@@ -452,9 +469,15 @@ function Add-CdAccount {
     Remove-CdRemoteIfPresent -Name $remote
     Backup-CdRcloneConfig
 
-    $parameters = & $definition.NewParameters $ClientId $ClientSecret
-    [void](Invoke-CdOAuthRemoteCreate -RemoteName $remote -RcloneType $definition.RcloneType -Parameters $parameters -Answers (Get-CdConfigAnswers -Definition $definition) `
-            -OnAuthUrl $OnAuthUrl -ShouldCancel $ShouldCancel -OnProgress $OnProgress)
+    if (Test-CdPasswordSignIn -Definition $definition) {
+        if (-not $WebDavLogin) { throw (New-CdException -Code 'CD-2006' -Detail "provider '$Provider' needs an address, a user and a password") }
+        New-CdWebDavRemote -RemoteName $remote -Login $WebDavLogin -OnProgress $OnProgress
+    }
+    else {
+        $parameters = & $definition.NewParameters $ClientId $ClientSecret
+        [void](Invoke-CdOAuthRemoteCreate -RemoteName $remote -RcloneType $definition.RcloneType -Parameters $parameters -Answers (Get-CdConfigAnswers -Definition $definition) `
+                -OnAuthUrl $OnAuthUrl -ShouldCancel $ShouldCancel -OnProgress $OnProgress)
+    }
 
     Send-CdProgress -OnProgress $OnProgress -Text (Get-CdText 'progress.quota')
     try { $about = Get-CdRemoteAbout -RemoteName $remote -CacheSec 0 }
@@ -477,16 +500,18 @@ function Add-CdAccount {
         }
     }
 
-    $clientMode = 'default'
-    if ($ClientId) { $clientMode = 'own' }
     $account = [ordered]@{
         id       = $id
         provider = $Provider
         kind     = $Kind
         label    = $Label
-        clientId = $clientMode
-        added    = (Get-Date).ToString('yyyy-MM-dd')
     }
+    # Which OAuth client signs in (password sign-ins have none).
+    if (-not (Test-CdPasswordSignIn -Definition $definition)) {
+        $account.clientId = 'default'
+        if ($ClientId) { $account.clientId = 'own' }
+    }
+    $account.added = (Get-Date).ToString('yyyy-MM-dd')
     if ($identity) { $account.identity = [ordered]@{ id = $identity.Id; name = $identity.Name } }
     $settings.accounts = Add-CdArrayItem -Array $settings.accounts -Item $account
     Save-CdSettings -Settings $settings
@@ -504,6 +529,12 @@ function Remove-CdAccount {
     Remove-CdWantedDrives -DriveIds @($drives | ForEach-Object { [string]$_.id })
 
     [void](Start-CdEngine)
+    $provider = Get-CdProvider -Id $account.provider
+    $revokeUrl = [string]$provider.RevokeUrl
+    if ($provider.ContainsKey('GetRevokeUrl')) {
+        try { $revokeUrl = [string](& $provider.GetRevokeUrl $account (Invoke-CdRc -Command 'config/get' -Body @{ name = (Get-CdAccountRemoteName -AccountId $Id) })) }
+        catch { Write-CdLog -Level DEBUG -Component 'Accounts' -Message "Revoke address of '$Id' unknown: $($_.Exception.Message)" }
+    }
     foreach ($drive in $drives) {
         try { [void](Dismount-CdDrive -Drive $drive -Force) }
         catch { Write-CdLog -Level WARN -Component 'Accounts' -Message "Disconnect of '$($drive.id)' failed: $($_.Exception.Message)" }
@@ -516,6 +547,5 @@ function Remove-CdAccount {
     $settings.accounts = @($settings.accounts | Where-Object { $_.id -ne $Id })
     Save-CdSettings -Settings $settings
     Write-CdLog -Component 'Accounts' -Message "Account '$Id' removed."
-    $provider = Get-CdProvider -Id $account.provider
-    New-CdResult -Message (Get-CdText 'account.removed' $account.label) -Data ([pscustomobject]@{ Account = $account; RevokeUrl = $provider.RevokeUrl })
+    New-CdResult -Message (Get-CdText 'account.removed' $account.label) -Data ([pscustomobject]@{ Account = $account; RevokeUrl = $revokeUrl })
 }

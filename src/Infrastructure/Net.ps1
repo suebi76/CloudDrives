@@ -90,6 +90,62 @@ function Invoke-CdApiGet {
     }
 }
 
+$script:CdWebClient = $null
+
+function Invoke-CdHttpRequest {
+    # HTTPS request to a server on the internet (through the system proxy). Returns @{ Status; Text } for every HTTP
+    # answer - callers decide what a status means; only a missing answer throws (CD-5001). Neither credentials nor
+    # answers are logged.
+    param(
+        [ValidateSet('GET', 'POST', 'DELETE')][string]$Method = 'GET',
+        [Parameter(Mandatory)][string]$Uri,
+        [System.Collections.IDictionary]$Headers = @{},
+        # Sent form-encoded as the body.
+        [System.Collections.IDictionary]$Form,
+        # Basic authentication.
+        [System.Management.Automation.PSCredential]$Credential,
+        [int]$TimeoutSec = 30
+    )
+    Initialize-CdTls
+    if (-not $script:CdWebClient) {
+        $client = New-Object System.Net.Http.HttpClient
+        $client.Timeout = [System.Threading.Timeout]::InfiniteTimeSpan
+        $script:CdWebClient = $client
+    }
+    $request = New-Object System.Net.Http.HttpRequestMessage((New-Object System.Net.Http.HttpMethod($Method)), $Uri)
+    if (-not $Headers.Contains('User-Agent')) { [void]$request.Headers.TryAddWithoutValidation('User-Agent', "CloudDrives/$((Get-CdContext).Version)") }
+    foreach ($key in $Headers.Keys) { [void]$request.Headers.TryAddWithoutValidation([string]$key, [string]$Headers[$key]) }
+    if ($Credential) {
+        $pair = '{0}:{1}' -f $Credential.UserName, $Credential.GetNetworkCredential().Password
+        $request.Headers.Authorization = New-Object System.Net.Http.Headers.AuthenticationHeaderValue('Basic', [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($pair)))
+        $pair = $null
+    }
+    if ($Form) {
+        $fields = New-Object 'System.Collections.Generic.List[System.Collections.Generic.KeyValuePair[string,string]]'
+        foreach ($key in $Form.Keys) { $fields.Add((New-Object 'System.Collections.Generic.KeyValuePair[string,string]'([string]$key, [string]$Form[$key]))) }
+        $request.Content = New-Object System.Net.Http.FormUrlEncodedContent(, $fields)
+    }
+    # A POST without body still says so (Content-Length: 0): some servers refuse it otherwise (403 or 411).
+    elseif ($Method -eq 'POST') { $request.Content = New-Object System.Net.Http.ByteArrayContent(, [byte[]]@()) }
+    $cancel = New-Object System.Threading.CancellationTokenSource([TimeSpan]::FromSeconds($TimeoutSec))
+    try {
+        try {
+            $response = $script:CdWebClient.SendAsync($request, $cancel.Token).GetAwaiter().GetResult()
+            $text = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        }
+        catch {
+            $message = $_.Exception.Message
+            if ($cancel.IsCancellationRequested) { $message = "timeout after $TimeoutSec s" }
+            throw (New-CdException -Code 'CD-5001' -Detail "$Method $($Uri.Split('?')[0]): $message" -InnerException $_.Exception)
+        }
+        [pscustomobject]@{ Status = [int]$response.StatusCode; Text = [string]$text }
+    }
+    finally {
+        $cancel.Dispose()
+        $request.Dispose()
+    }
+}
+
 function Test-CdFileHash {
     param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Sha256)
     (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ieq $Sha256

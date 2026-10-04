@@ -157,6 +157,24 @@ Die Anmeldung im Browser hat geklappt, die Einrichtung danach nicht: Der Anbiete
 
 *English: Setup after the sign-in failed. The sign-in in the browser worked, the setup afterwards did not: the provider refused a request (such as which drives belong to the account) or rclone asked an unexpected question (see the details). If the provider has a disruption, try again later. If the error persists, create a support bundle under "Diagnosis & help".*
 
+### CD-3012 - Benutzername oder Passwort abgelehnt
+
+Der Server hat die Anmeldung abgelehnt. Prüfe Benutzername und Passwort – bei IServ dein IServ-Passwort. Wurde das Passwort geändert, melde das Konto unter „Konten verwalten“ neu an.
+
+*English: User name or password refused. The server refused the sign-in. Check the user name and the password - for IServ your IServ password. If the password was changed, sign the account in again under "Manage accounts".*
+
+### CD-3013 - WebDAV-Adresse nicht gefunden
+
+Unter dieser Adresse antwortet kein WebDAV-Server. Bei IServ ist es webdav.<Adresse deiner Schule>, bei Nextcloud die Adresse, unter der du sie im Browser öffnest. Adressen müssen mit https beginnen.
+
+*English: WebDAV address not found. No WebDAV server answers at this address. For IServ it is webdav.<address of your school>, for Nextcloud the address you open it with in the browser. Addresses must start with https.*
+
+### CD-3014 - Nextcloud-Anmeldung nicht möglich
+
+Die Anmeldung im Browser hat nicht geklappt. Versuche es erneut. Lässt deine Nextcloud sie für Programme nicht zu, fragt CloudDrives stattdessen nach einem App-Passwort (Nextcloud → Einstellungen → Sicherheit).
+
+*English: Nextcloud sign-in not possible. The sign-in in the browser did not work. Try again. If your Nextcloud does not allow it for programs, CloudDrives asks for an app password instead (Nextcloud > Settings > Security).*
+
 ## 4xxx - Laufwerke
 
 ### CD-4001 - Laufwerksbuchstabe ist belegt

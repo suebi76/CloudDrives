@@ -131,12 +131,18 @@ function Start-CdAddAccountWizard {
     Write-CdInfo -Text ('[1] ' + (Get-CdText 'wizard.add.provider.onedrive'))
     Write-CdInfo -Text ('[2] ' + (Get-CdText 'wizard.add.provider.googlePersonal'))
     Write-CdInfo -Text ('[3] ' + (Get-CdText 'wizard.add.provider.googleWorkspace'))
+    Write-CdInfo -Text ('[4] ' + (Get-CdText 'wizard.add.provider.nextcloud'))
+    Write-CdInfo -Text ('[5] ' + (Get-CdText 'wizard.add.provider.iserv'))
+    Write-CdInfo -Text ('[6] ' + (Get-CdText 'wizard.add.provider.webdav'))
     Write-CdInfo -Text ('[0] ' + (Get-CdText 'ui.cancel'))
-    $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '0')
+    $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '4', '5', '6', '0')
     switch ($choice) {
         '1' { $provider = 'onedrive'; $kind = 'personal'; $defaultLabel = Get-CdText 'wizard.add.defaultLabel.onedrive' }
         '2' { $provider = 'drive'; $kind = 'personal'; $defaultLabel = Get-CdText 'wizard.add.defaultLabel.googlePersonal' }
         '3' { $provider = 'drive'; $kind = 'workspace'; $defaultLabel = Get-CdText 'wizard.add.defaultLabel.googleWorkspace' }
+        '4' { $provider = 'webdav'; $kind = 'nextcloud'; $defaultLabel = Get-CdText 'wizard.add.defaultLabel.nextcloud' }
+        '5' { $provider = 'webdav'; $kind = 'iserv'; $defaultLabel = Get-CdText 'wizard.add.defaultLabel.iserv' }
+        '6' { $provider = 'webdav'; $kind = 'other'; $defaultLabel = Get-CdText 'wizard.add.defaultLabel.webdav' }
         default { return }
     }
     $definition = Get-CdProvider -Id $provider
@@ -163,13 +169,20 @@ function Start-CdAddAccountWizard {
         }
     }
 
-    Write-CdStep -Text (Get-CdText 'wizard.add.loginStep' (Get-CdText $definition.NameKey))
-    Write-CdInfo -Text (Get-CdText 'wizard.add.loginExplain')
-    if ($kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.workspaceHint') -Color DarkGray }
+    $credential = $null
+    if (Test-CdPasswordSignIn -Definition $definition) {
+        $credential = Read-CdWebDavSignIn -Kind $kind
+        if (-not $credential) { return }
+    }
+    else {
+        Write-CdStep -Text (Get-CdText 'wizard.add.loginStep' (Get-CdText $definition.NameKey))
+        Write-CdInfo -Text (Get-CdText 'wizard.add.loginExplain')
+        if ($kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.workspaceHint') -Color DarkGray }
+    }
     try {
         $result = Add-CdAccount -Provider $provider -Label $label -Kind $kind -ClientId $client.ClientId -ClientSecret $client.ClientSecret `
             -OnAuthUrl { param([string]$Url) Show-CdAuthUrl -Url $Url } -ShouldCancel { Test-CdEscapePressed } `
-            -OnProgress { param([string]$Status) Write-CdProgress -Text $Status }
+            -OnProgress { param([string]$Status) Write-CdProgress -Text $Status } -WebDavLogin $credential
     }
     catch {
         Complete-CdProgress
@@ -210,6 +223,91 @@ function Start-CdAddAccountWizard {
         if ($vaultDrive) { $created.Add($vaultDrive) }
     }
     Complete-CdNewDrives -Drives $created.ToArray()
+}
+
+function Read-CdWebDavSignIn {
+    # The sign-in of a WebDAV account: Nextcloud signs in in the browser and hands over an app password, IServ and
+    # other servers take the address, the user name and the password. With -Account (signing in again) address and
+    # user stay and only the password is asked for. Returns a credential, or $null when cancelled or failed (the
+    # error has been shown).
+    param([Parameter(Mandatory)][ValidateSet('nextcloud', 'iserv', 'other')][string]$Kind, [System.Collections.IDictionary]$Account)
+    $current = $null
+    if ($Account) {
+        try {
+            [void](Start-CdEngine)
+            $current = Get-CdWebDavAccountInfo -AccountId $Account.id
+        }
+        catch { Write-CdLog -Level WARN -Component 'Wizard' -Message "WebDAV address of '$($Account.id)' unknown: $($_.Exception.Message)" }
+    }
+    try {
+        if ($Kind -eq 'nextcloud') {
+            $davUrl = ''
+            if ($current -and $current.Server) {
+                $server = $current.Server
+                $davUrl = $current.Url
+            }
+            else {
+                Write-CdStep -Text (Get-CdText 'webdav.nextcloud.step')
+                Write-CdInfo -Text (Get-CdText 'webdav.nextcloud.addressHint') -Color DarkGray
+                $answer = Read-CdText -Prompt (Get-CdText 'webdav.nextcloud.addressPrompt')
+                if ([string]::IsNullOrWhiteSpace($answer)) { return $null }
+                $address = ConvertTo-CdWebDavAddress -Kind 'nextcloud' -Address $answer
+                $server = $address.Server
+                $davUrl = $address.Url
+            }
+            Write-CdStep -Text (Get-CdText 'wizard.add.loginStep' (Get-CdText 'provider.webdav.kind.nextcloud'))
+            # The browser sign-in first; a Nextcloud that refuses it for programs gets an app password instead.
+            $nextcloudBrowser = @{ Opened = $false }
+            try {
+                return (Invoke-CdNextcloudLogin -Server $server -ShouldCancel { Test-CdEscapePressed } `
+                        -OnAuthUrl { param([string]$Url) $nextcloudBrowser.Opened = $true; Write-CdInfo -Text (Get-CdText 'webdav.nextcloud.explain'); Show-CdAuthUrl -Url $Url } `
+                        -OnProgress { param([string]$Status) Write-CdProgress -Text $Status })
+            }
+            catch {
+                if ((Get-CdErrorCode $_) -ne 'CD-3014' -or $nextcloudBrowser.Opened) { throw }
+                Write-CdLog -Component 'Wizard' -Message "Nextcloud refuses the browser sign-in: $((Get-CdErrorInfo $_).Detail)"
+            }
+            Write-CdInfo -Text (Get-CdText 'webdav.nextcloud.noBrowserLogin') -Color Yellow
+            $security = $server + '/settings/user/security'
+            Write-CdInfo -Text ('  ' + $security) -Color Cyan
+            if (Read-CdYesNo -Prompt (Get-CdText 'webdav.nextcloud.openSecurity') -Default $true) {
+                try { Start-Process -FilePath $security } catch { Write-CdInfo -Text (Get-CdText 'wizard.add.browserFailed') -Color Yellow }
+            }
+            $defaultUser = ''
+            if ($current) { $defaultUser = $current.User }
+            $user = Read-CdText -Prompt (Get-CdText 'webdav.nextcloud.userPrompt') -Default $defaultUser
+            if ([string]::IsNullOrWhiteSpace($user)) { return $null }
+            Write-CdInfo -Text (Get-CdText 'webdav.passwordNote') -Color DarkGray
+            $password = Read-CdSecureText -Prompt (Get-CdText 'webdav.nextcloud.passwordPrompt')
+            if (-not $password -or $password.Length -eq 0) { return $null }
+            return (New-CdNextcloudCredential -Server $server -Url $davUrl -User $user.Trim() -Password $password)
+        }
+        if ($current -and $current.Url -and $current.User) {
+            $url = $current.Url
+            $user = $current.User
+            Write-CdInfo -Text (Get-CdText 'webdav.reloginUser' ('{0} @ {1}' -f $user, $current.HostName)) -Color White
+        }
+        else {
+            Write-CdStep -Text (Get-CdText "webdav.$Kind.step")
+            Write-CdInfo -Text (Get-CdText "webdav.$Kind.addressHint") -Color DarkGray
+            $answer = Read-CdText -Prompt (Get-CdText "webdav.$Kind.addressPrompt")
+            if ([string]::IsNullOrWhiteSpace($answer)) { return $null }
+            $url = (ConvertTo-CdWebDavAddress -Kind $Kind -Address $answer).Url
+            Write-CdInfo -Text (Get-CdText 'webdav.address' $url) -Color DarkGray
+            $user = Read-CdText -Prompt (Get-CdText "webdav.$Kind.userPrompt")
+            if ([string]::IsNullOrWhiteSpace($user)) { return $null }
+        }
+        Write-CdInfo -Text (Get-CdText 'webdav.passwordNote') -Color DarkGray
+        $password = Read-CdSecureText -Prompt (Get-CdText "webdav.$Kind.passwordPrompt")
+        if (-not $password -or $password.Length -eq 0) { return $null }
+        New-CdWebDavCredential -Url $url -Kind $Kind -User $user.Trim() -Password $password
+    }
+    catch {
+        Complete-CdProgress
+        Write-CdErrorInfo -Info (Get-CdErrorInfo $_)
+        Wait-CdKeyPress
+        $null
+    }
 }
 
 function Complete-CdNewDrives {
@@ -702,6 +800,7 @@ function Format-CdAccountLine {
     param([Parameter(Mandatory)][System.Collections.IDictionary]$Account)
     $provider = Get-CdProvider -Id $Account.provider
     $kind = Get-CdText $provider.NameKey
+    if ($Account.provider -eq 'webdav') { $kind = Get-CdText "provider.webdav.kind.$($Account.kind)" }
     if ($Account.provider -eq 'drive') {
         if ($Account.clientId -eq 'own') { $kind += ', ' + (Get-CdText 'accounts.clientOwn') }
         else { $kind += ', ' + (Get-CdText 'accounts.clientShared') }
@@ -794,9 +893,16 @@ function Start-CdReloginWizard {
     if ($letters) { Write-CdInfo -Text (Get-CdText 'relogin.reconnectHint' $letters) -Color Yellow }
     if (-not (Read-CdYesNo -Prompt (Get-CdText 'relogin.confirm') -Default $true)) { return $false }
 
-    Write-CdStep -Text (Get-CdText 'wizard.add.loginStep' (Get-CdText $definition.NameKey))
-    Write-CdInfo -Text (Get-CdText 'wizard.add.loginExplain')
-    if ($Account.kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.workspaceHint') -Color DarkGray }
+    $credential = $null
+    if (Test-CdPasswordSignIn -Definition $definition) {
+        $credential = Read-CdWebDavSignIn -Kind $Account.kind -Account $Account
+        if (-not $credential) { return $false }
+    }
+    else {
+        Write-CdStep -Text (Get-CdText 'wizard.add.loginStep' (Get-CdText $definition.NameKey))
+        Write-CdInfo -Text (Get-CdText 'wizard.add.loginExplain')
+        if ($Account.kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.workspaceHint') -Color DarkGray }
+    }
     $confirmIdentity = {
         param($Identity, $Owner)
         Complete-CdProgress
@@ -806,7 +912,7 @@ function Start-CdReloginWizard {
     try {
         $result = Update-CdAccountLogin -AccountId $Account.id -ClientId $client.ClientId -ClientSecret $client.ClientSecret `
             -OnAuthUrl { param([string]$Url) Show-CdAuthUrl -Url $Url } -ShouldCancel { Test-CdEscapePressed } -ConfirmIdentity $confirmIdentity `
-            -OnProgress { param([string]$Status) Write-CdProgress -Text $Status }
+            -OnProgress { param([string]$Status) Write-CdProgress -Text $Status } -WebDavLogin $credential
     }
     catch {
         Complete-CdProgress
@@ -851,7 +957,8 @@ function Start-CdRemoveAccountWizard {
     try {
         $result = Remove-CdAccount -Id $account.id
         Write-CdOk -Text $result.Message
-        Write-CdInfo -Text (Get-CdText 'wizard.remove.revokeHint' $result.Data.RevokeUrl) -Color DarkGray
+        if ($result.Data.RevokeUrl) { Write-CdInfo -Text (Get-CdText 'wizard.remove.revokeHint' $result.Data.RevokeUrl) -Color DarkGray }
+        else { Write-CdInfo -Text (Get-CdText 'wizard.remove.passwordDeleted') -Color DarkGray }
     }
     catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
     Wait-CdKeyPress
