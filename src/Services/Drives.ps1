@@ -194,6 +194,38 @@ function Dismount-CdDrive {
     New-CdResult -Message (Get-CdText 'drive.disconnected' $Drive.label, $mountPoint) -Data $Drive
 }
 
+function Wait-CdDriveLetterFree {
+    # Windows may need a moment to release the letter of a drive that was just disconnected.
+    param([Parameter(Mandatory)][string]$Letter, [int]$TimeoutSec = 10)
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-CdUsedDriveLetters) -contains $Letter) {
+        if ((Get-Date) -ge $deadline) { return $false }
+        Start-Sleep -Milliseconds 250
+    }
+    $true
+}
+
+function Restart-CdAccountDrives {
+    # Reconnects the mounted drives of an account (including its vaults), e.g. after a new sign-in, so they
+    # use the new credentials. Uploads still pending stay in the cache and continue after reconnecting.
+    param([Parameter(Mandatory)][string]$AccountId)
+    $mounted = Get-CdMountedDrives
+    $results = foreach ($drive in @((Get-CdSettings).drives | Where-Object { $_.account -eq $AccountId })) {
+        if (-not $mounted.ContainsKey("$($drive.letter):".ToUpperInvariant())) { continue }
+        try {
+            [void](Dismount-CdDrive -Drive $drive -Force)
+            [void](Wait-CdDriveLetterFree -Letter ([string]$drive.letter))
+            Mount-CdDrive -Drive $drive
+        }
+        catch {
+            $info = Get-CdErrorInfo $_
+            Write-CdLog -Level ERROR -Component 'Drives' -Message "Reconnect of '$($drive.id)' failed: $($info.Code) $($info.Detail)"
+            New-CdResult -Success $false -Code $info.Code -Message (Get-CdText 'drive.connectFailed' $drive.label, "$($drive.letter):") -Detail $info.Detail -Data $drive
+        }
+    }
+    @($results)
+}
+
 function Remove-CdDrive {
     # Disconnects a drive and removes its definition (and the vault key on this PC). Cloud data stays untouched.
     param([Parameter(Mandatory)][string]$Id)

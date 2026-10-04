@@ -57,8 +57,15 @@ Ohne diesen Schritt kann die Anmeldung mit **Fehler 400: admin_policy_enforced**
 4. Im Browser anmelden. Bei einer externen App zeigt Google einmalig **„Google hat diese App nicht überprüft“**.
    Klicke **Erweitert → Zu CloudDrives wechseln**. Das ist unbedenklich, weil es deine eigene App ist.
 
-Ein bestehendes Konto stellst du um, indem du es entfernst und mit eigener Client-ID neu hinzufügst.
-Deine Dateien in der Cloud bleiben dabei unverändert.
+**Ein bestehendes Konto umstellen:** Menü → **Konten verwalten → Google-Client-ID ändern** (oder
+`CloudDrives.bat client-id <Konto>`).
+
+- CloudDrives übernimmt den Client eines anderen Kontos, liest die heruntergeladene Client-Datei oder fragt nach ID und Geheimnis.
+- Danach meldest du dich im Browser neu an.
+- Laufwerke, Tresore und Einstellungen bleiben erhalten.
+- Die bisherige Anmeldung wird erst ersetzt, wenn die neue funktioniert und zum selben Google-Konto gehört.
+
+So tauschst du auch ein neues Client-Geheimnis ein: gleiche ID, neues Geheimnis.
 
 ## Häufige Fragen
 
@@ -66,3 +73,4 @@ Deine Dateien in der Cloud bleiben dabei unverändert.
 - **Kann ich eine Client-ID für mehrere Konten verwenden?** Ja. Eine externe, veröffentlichte App funktioniert für dein
   privates Konto und für Workspace-Konten. Bei Workspace muss sie dort zusätzlich als vertrauenswürdig markiert sein (Schritt 4).
 - **Wie widerrufe ich den Zugriff?** Unter [myaccount.google.com/permissions](https://myaccount.google.com/permissions).
+  Danach meldest du das Konto in CloudDrives unter **Konten verwalten → Neu anmelden** wieder an.

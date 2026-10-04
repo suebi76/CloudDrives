@@ -42,3 +42,10 @@ function Get-CdVaultRemoteName {
     param([Parameter(Mandatory)][string]$DriveId)
     "cd-vault-$DriveId"
 }
+
+function Get-CdSignInRemoteName {
+    # Temporary remote for a new sign-in of an existing account. The dot cannot occur in ids, so the name
+    # never collides with the remote of another account.
+    param([Parameter(Mandatory)][string]$AccountId)
+    "cd-signin.$AccountId"
+}

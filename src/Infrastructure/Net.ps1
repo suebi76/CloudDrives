@@ -57,6 +57,39 @@ function Get-CdWebText {
     [string]$response.Content
 }
 
+function Get-CdHttpStatusCode {
+    # HTTP status of a failed web request (WebException in Windows PowerShell, HttpResponseException in
+    # PowerShell 7), or 0 when no response arrived.
+    param([Parameter(Mandatory)][System.Management.Automation.ErrorRecord]$ErrorRecord)
+    $response = $ErrorRecord.Exception.Response
+    if ($response -and $response.StatusCode) { return [int]$response.StatusCode }
+    0
+}
+
+function ConvertTo-CdApiErrorCode {
+    # 401 = sign-in invalid, other HTTP errors = provider refused, no response = no connection.
+    param([int]$Status)
+    if ($Status -eq 401) { return 'CD-3001' }
+    if ($Status -ge 400) { return 'CD-3008' }
+    'CD-5001'
+}
+
+function Invoke-CdApiGet {
+    # GET request to a cloud API with an OAuth access token. Neither the token nor the response is logged.
+    param(
+        [Parameter(Mandatory)][string]$Uri,
+        [Parameter(Mandatory)][string]$AccessToken,
+        [int]$TimeoutSec = 20
+    )
+    Initialize-CdTls
+    $headers = @{ Authorization = "Bearer $AccessToken"; 'User-Agent' = "CloudDrives/$((Get-CdContext).Version)" }
+    try { Invoke-RestMethod -Uri $Uri -Headers $headers -UseBasicParsing -TimeoutSec $TimeoutSec }
+    catch {
+        $status = Get-CdHttpStatusCode -ErrorRecord $_
+        throw (New-CdException -Code (ConvertTo-CdApiErrorCode -Status $status) -Detail "GET $($Uri.Split('?')[0]): HTTP $status" -InnerException $_.Exception)
+    }
+}
+
 function Test-CdFileHash {
     param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][string]$Sha256)
     (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ieq $Sha256

@@ -79,6 +79,8 @@ Gestartet wird CloudDrives über das Startmenü. Die Befehle unten gelten für d
 | `CloudDrives.bat verbinden` | alle Laufwerke verbinden (`verbinden K` nur eines) |
 | `CloudDrives.bat trennen` | alle Laufwerke trennen (`--force` trotz laufender Uploads) |
 | `CloudDrives.bat status --json` | Status für Skripte |
+| `CloudDrives.bat neu-anmelden K` | Konto von Laufwerk K: neu anmelden, ohne es zu entfernen |
+| `CloudDrives.bat client-id K` | eigene Google-Client-ID des Kontos ändern |
 | `CloudDrives.bat autostart an` | bei der Windows-Anmeldung automatisch verbinden (`aus` schaltet es ab) |
 | `CloudDrives.bat aktualisieren` | nach Updates suchen und installieren (`--check` nur prüfen) |
 | `CloudDrives.bat deinstallieren` | CloudDrives von diesem PC entfernen |
@@ -87,6 +89,9 @@ Gestartet wird CloudDrives über das Startmenü. Die Befehle unten gelten für d
 ## Sicherheit
 
 - **Anmeldung:** ausschließlich auf den Seiten von Microsoft bzw. Google (OAuth). CloudDrives fragt nie nach deinem Passwort.
+- **Neu anmelden:** Ist eine Anmeldung abgelaufen oder widerrufen, meldest du das Konto unter **Konten verwalten** neu an.
+  Das Konto selbst bleibt dabei bestehen. CloudDrives prüft, dass du dich mit demselben Konto anmeldest. So landen die
+  Dateien eines Laufwerks nie versehentlich in einem anderen Konto.
 - **Tokens:** liegen in `%LOCALAPPDATA%\CloudDrives\rclone.conf`, verschlüsselt mit einem zufälligen 256-Bit-Schlüssel.
   Der Schlüssel liegt DPAPI-geschützt in der Windows-Anmeldeinformationsverwaltung. Der Ordner ist nur für deinen Benutzer lesbar.
 - **Repository:** Es enthält nie Zugangsdaten. Mehrere Schutzschichten sorgen dafür: Allowlist-`.gitignore`, Secret-Scans in

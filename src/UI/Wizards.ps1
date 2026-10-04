@@ -59,6 +59,69 @@ function Start-CdSetupWizard {
     $true
 }
 
+function Show-CdAuthUrl {
+    # Opens the provider's sign-in page in the browser and also shows the link (if the browser stays closed).
+    param([Parameter(Mandatory)][string]$Url)
+    Write-CdInfo -Text (Get-CdText 'wizard.add.browserOpening')
+    Write-CdInfo -Text ('  ' + $Url) -Color Cyan
+    try { Start-Process -FilePath $Url } catch { Write-CdInfo -Text (Get-CdText 'wizard.add.browserFailed') -Color Yellow }
+    Write-CdInfo -Text (Get-CdText 'wizard.add.waiting') -Color DarkGray
+}
+
+function Read-CdGoogleClient {
+    # Asks for an own Google OAuth client: 1) the client of another configured account, 2) a downloaded
+    # client file, 3) manual entry. -Current excludes the client an account already uses (same ID and secret).
+    # Returns @{ ClientId; ClientSecret; File } or $null when cancelled.
+    param([string]$Kind, [object]$Current)
+    $currentId = $null
+    $currentSecret = $null
+    if ($Current) {
+        $currentId = [string]$Current.ClientId
+        $currentSecret = [string]$Current.ClientSecret
+    }
+    try {
+        [void](Start-CdEngine)
+        foreach ($known in @(Get-CdOwnGoogleClients)) {
+            if ($known.ClientId -eq $currentId -and $known.ClientSecret -eq $currentSecret) { continue }
+            Write-CdInfo -Text (Get-CdText 'wizard.add.client.reuseFound' $known.AccountLabel, $known.ClientId)
+            if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.client.reuse') -Default $true) {
+                return [pscustomobject]@{ ClientId = $known.ClientId; ClientSecret = $known.ClientSecret; File = $null }
+            }
+        }
+    }
+    catch { Write-CdLog -Level WARN -Component 'Wizard' -Message "Existing clients unavailable: $($_.Exception.Message)" }
+    $file = Find-CdGoogleClientFile
+    if ($file -and -not ($file.ClientId -eq $currentId -and $file.ClientSecret -eq $currentSecret)) {
+        Write-CdInfo -Text (Get-CdText 'wizard.add.client.fileFound' (Split-Path -Leaf $file.Path), $file.ClientId)
+        if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.client.fileUse') -Default $true) {
+            return [pscustomobject]@{ ClientId = $file.ClientId; ClientSecret = $file.ClientSecret; File = $file }
+        }
+    }
+    Write-CdInfo -Text (Get-CdText 'wizard.add.client.ownHint' (Join-Path (Get-CdContext).AppRoot 'docs\GOOGLE-OAUTH.md')) -Color DarkGray
+    if ($Kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.client.workspaceHint') -Color DarkGray }
+    $clientId = $null
+    while (-not $clientId) {
+        $answer = Read-CdText -Prompt (Get-CdText 'wizard.add.client.idPrompt')
+        if (-not $answer) { return $null }
+        if (Test-CdGoogleClientId -ClientId $answer) { $clientId = $answer.Trim() }
+        else { Write-CdInfo -Text (Get-CdText 'wizard.add.client.idInvalid') -Color Yellow }
+    }
+    $secret = $null
+    while (-not $secret) { $secret = Read-CdSecretText -Prompt (Get-CdText 'wizard.add.client.secretPrompt') }
+    [pscustomobject]@{ ClientId = $clientId; ClientSecret = $secret; File = $null }
+}
+
+function Remove-CdClientFileUi {
+    # The downloaded client file holds the secret in plain text; CloudDrives keeps it encrypted now.
+    param([object]$Client)
+    if (-not $Client -or -not $Client.File -or -not (Test-Path -LiteralPath $Client.File.Path)) { return }
+    Write-CdInfo -Text (Get-CdText 'wizard.add.client.fileDeleteHint' (Split-Path -Leaf $Client.File.Path)) -Color DarkGray
+    if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.client.fileDelete') -Default $true) {
+        Remove-Item -LiteralPath $Client.File.Path -Force
+        Write-CdOk -Text (Get-CdText 'wizard.add.client.fileDeleted')
+    }
+}
+
 function Start-CdAddAccountWizard {
     Clear-CdScreen
     Write-CdHeader -Subtitle (Get-CdText 'wizard.add.title')
@@ -80,8 +143,7 @@ function Start-CdAddAccountWizard {
     $label = Read-CdText -Prompt (Get-CdText 'wizard.add.labelPrompt') -Default $defaultLabel
     if ([string]::IsNullOrWhiteSpace($label)) { $label = $defaultLabel }
 
-    $clientId = $null
-    $clientSecret = $null
+    $client = $null
     if ($provider -eq 'drive') {
         # rclone's shared Google client ID is being retired during 2026, so an own client ID is the default.
         Write-CdStep -Text (Get-CdText 'wizard.add.clientQuestion')
@@ -92,36 +154,8 @@ function Start-CdAddAccountWizard {
         $clientChoice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '0') -Default '1'
         if ($clientChoice -eq '0') { return }
         if ($clientChoice -eq '1') {
-            # 1) reuse the client of another Google account, 2) take the downloaded client file, 3) ask.
-            try {
-                [void](Start-CdEngine)
-                foreach ($known in @(Get-CdOwnGoogleClients)) {
-                    if ($clientId) { break }
-                    Write-CdInfo -Text (Get-CdText 'wizard.add.client.reuseFound' $known.AccountLabel, $known.ClientId)
-                    if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.client.reuse') -Default $true) { $clientId = $known.ClientId; $clientSecret = $known.ClientSecret }
-                }
-            }
-            catch { Write-CdLog -Level WARN -Component 'Wizard' -Message "Existing clients unavailable: $($_.Exception.Message)" }
-            $clientFile = $null
-            if (-not $clientId) {
-                $clientFile = Find-CdGoogleClientFile
-                if ($clientFile) {
-                    Write-CdInfo -Text (Get-CdText 'wizard.add.client.fileFound' (Split-Path -Leaf $clientFile.Path), $clientFile.ClientId)
-                    if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.client.fileUse') -Default $true) { $clientId = $clientFile.ClientId; $clientSecret = $clientFile.ClientSecret }
-                    else { $clientFile = $null }
-                }
-            }
-            if (-not $clientId) {
-                Write-CdInfo -Text (Get-CdText 'wizard.add.client.ownHint' (Join-Path (Get-CdContext).AppRoot 'docs\GOOGLE-OAUTH.md')) -Color DarkGray
-                if ($kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.client.workspaceHint') -Color DarkGray }
-            }
-            while (-not $clientId) {
-                $answer = Read-CdText -Prompt (Get-CdText 'wizard.add.client.idPrompt')
-                if (-not $answer) { return }
-                if (Test-CdGoogleClientId -ClientId $answer) { $clientId = $answer.Trim() }
-                else { Write-CdInfo -Text (Get-CdText 'wizard.add.client.idInvalid') -Color Yellow }
-            }
-            while (-not $clientSecret) { $clientSecret = Read-CdSecretText -Prompt (Get-CdText 'wizard.add.client.secretPrompt') }
+            $client = Read-CdGoogleClient -Kind $kind
+            if (-not $client) { return }
         }
         else {
             Write-CdInfo -Text (Get-CdText 'wizard.add.client.sharedWarning') -Color Yellow
@@ -131,15 +165,9 @@ function Start-CdAddAccountWizard {
     Write-CdStep -Text (Get-CdText 'wizard.add.loginStep' (Get-CdText $definition.NameKey))
     Write-CdInfo -Text (Get-CdText 'wizard.add.loginExplain')
     if ($kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.workspaceHint') -Color DarkGray }
-    $onAuthUrl = {
-        param([string]$Url)
-        Write-CdInfo -Text (Get-CdText 'wizard.add.browserOpening')
-        Write-CdInfo -Text ('  ' + $Url) -Color Cyan
-        try { Start-Process -FilePath $Url } catch { Write-CdInfo -Text (Get-CdText 'wizard.add.browserFailed') -Color Yellow }
-        Write-CdInfo -Text (Get-CdText 'wizard.add.waiting') -Color DarkGray
-    }
     try {
-        $result = Add-CdAccount -Provider $provider -Label $label -Kind $kind -ClientId $clientId -ClientSecret $clientSecret -OnAuthUrl $onAuthUrl -ShouldCancel { Test-CdEscapePressed }
+        $result = Add-CdAccount -Provider $provider -Label $label -Kind $kind -ClientId $client.ClientId -ClientSecret $client.ClientSecret `
+            -OnAuthUrl { param([string]$Url) Show-CdAuthUrl -Url $Url } -ShouldCancel { Test-CdEscapePressed }
     }
     catch {
         Write-CdErrorInfo -Info (Get-CdErrorInfo $_)
@@ -150,14 +178,8 @@ function Start-CdAddAccountWizard {
     $about = $result.Data.About
     Write-Host ''
     Write-CdOk -Text $result.Message
-    if ($clientFile -and (Test-Path -LiteralPath $clientFile.Path)) {
-        # The downloaded file holds the client secret in plain text; CloudDrives keeps it encrypted now.
-        Write-CdInfo -Text (Get-CdText 'wizard.add.client.fileDeleteHint' (Split-Path -Leaf $clientFile.Path)) -Color DarkGray
-        if (Read-CdYesNo -Prompt (Get-CdText 'wizard.add.client.fileDelete') -Default $true) {
-            Remove-Item -LiteralPath $clientFile.Path -Force
-            Write-CdOk -Text (Get-CdText 'wizard.add.client.fileDeleted')
-        }
-    }
+    if ($result.Data.Identity -and $result.Data.Identity.Name) { Write-CdInfo -Text (Get-CdText 'relogin.signedInAs' $result.Data.Identity.Name) }
+    Remove-CdClientFileUi -Client $client
     if ($about -and $null -ne $about.used) {
         if ($about.total) { Write-CdInfo -Text (Get-CdText 'wizard.add.quota' (Format-CdSize $about.used), (Format-CdSize $about.total)) }
         else { Write-CdInfo -Text (Get-CdText 'wizard.add.quotaUsed' (Format-CdSize $about.used)) }
@@ -352,10 +374,12 @@ function Show-CdRecoveryKit {
 }
 
 function Select-CdAccountUi {
-    # Lets the user pick one of the configured accounts; returns it or $null.
-    $accounts = @((Get-CdSettings).accounts)
+    # Lets the user pick one of the configured accounts (optionally of one provider); returns it or $null.
+    param([string]$Provider)
+    $accounts = @((Get-CdSettings).accounts | Where-Object { -not $Provider -or $_.provider -eq $Provider })
     if ($accounts.Count -eq 0) {
-        Write-CdInfo -Text (Get-CdText 'manage.noAccounts') -Color Yellow
+        if ($Provider -eq 'drive') { Write-CdInfo -Text (Get-CdText 'accounts.noGoogle') -Color Yellow }
+        else { Write-CdInfo -Text (Get-CdText 'manage.noAccounts') -Color Yellow }
         return $null
     }
     $valid = New-Object System.Collections.Generic.List[string]
@@ -635,6 +659,129 @@ function Start-CdManageDrivesMenu {
             '0' { return }
         }
     }
+}
+
+function Format-CdAccountLine {
+    # "Google Pro  (Google Drive, eigene Client-ID)  name@example.com  K: V:"
+    param([Parameter(Mandatory)][System.Collections.IDictionary]$Account)
+    $provider = Get-CdProvider -Id $Account.provider
+    $kind = Get-CdText $provider.NameKey
+    if ($Account.provider -eq 'drive') {
+        if ($Account.clientId -eq 'own') { $kind += ', ' + (Get-CdText 'accounts.clientOwn') }
+        else { $kind += ', ' + (Get-CdText 'accounts.clientShared') }
+    }
+    $line = '{0}  ({1})' -f $Account.label, $kind
+    if ($Account.identity -and $Account.identity.name) { $line += '  ' + $Account.identity.name }
+    $letters = @((Get-CdSettings).drives | Where-Object { $_.account -eq $Account.id } | ForEach-Object { "$($_.letter):" }) -join ' '
+    if ($letters) { $line += '  ' + $letters }
+    $line
+}
+
+function Start-CdManageAccountsMenu {
+    while ($true) {
+        Clear-CdScreen
+        Write-CdHeader -Subtitle (Get-CdText 'accounts.title')
+        $accounts = @((Get-CdSettings).accounts)
+        if ($accounts.Count -eq 0) { Write-CdInfo -Text (Get-CdText 'manage.noAccounts') }
+        foreach ($account in $accounts) { Write-CdInfo -Text (Format-CdAccountLine -Account $account) }
+        Write-Host ''
+        Write-CdInfo -Text ('[1] ' + (Get-CdText 'accounts.relogin')) -Color White
+        Write-CdInfo -Text ('[2] ' + (Get-CdText 'accounts.changeClient')) -Color White
+        Write-CdInfo -Text ('[3] ' + (Get-CdText 'menu.removeAccount')) -Color White
+        Write-CdInfo -Text ('[0] ' + (Get-CdText 'manage.back')) -Color White
+        switch (Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '0')) {
+            '1' { [void](Start-CdReloginWizard) }
+            '2' { [void](Start-CdReloginWizard -ChangeClient) }
+            '3' { Start-CdRemoveAccountWizard }
+            '0' { return }
+        }
+    }
+}
+
+function Start-CdReloginWizard {
+    # Signs an account in again without removing it - optionally with another Google client ID.
+    # -Embedded continues on the current screen (e.g. right after a failed connect). Returns $true on success.
+    param([System.Collections.IDictionary]$Account, [switch]$ChangeClient, [switch]$Embedded)
+    if (-not $Embedded) {
+        Clear-CdScreen
+        $title = 'relogin.title'
+        if ($ChangeClient) { $title = 'client.title' }
+        Write-CdHeader -Subtitle (Get-CdText $title)
+    }
+    if (-not $Account) {
+        $provider = $null
+        if ($ChangeClient) {
+            $provider = 'drive'
+            Write-CdStep -Text (Get-CdText 'client.chooseAccount')
+        }
+        else { Write-CdStep -Text (Get-CdText 'relogin.chooseAccount') }
+        $Account = Select-CdAccountUi -Provider $provider
+        if (-not $Account) {
+            # Only the "no accounts" message needs to stay readable; a cancelled choice returns at once.
+            $available = @((Get-CdSettings).accounts | Where-Object { -not $provider -or $_.provider -eq $provider })
+            if (-not $Embedded -and $available.Count -eq 0) { Wait-CdKeyPress }
+            return $false
+        }
+    }
+    $definition = Get-CdProvider -Id $Account.provider
+
+    $client = $null
+    if ($ChangeClient -and $Account.provider -ne 'drive') {
+        Write-CdInfo -Text (Get-CdText 'client.onlyGoogle') -Color Yellow
+        if (-not $Embedded) { Wait-CdKeyPress }
+        return $false
+    }
+    if ($ChangeClient) {
+        $current = $null
+        try {
+            [void](Start-CdEngine)
+            $config = Invoke-CdRc -Command 'config/get' -Body @{ name = (Get-CdAccountRemoteName -AccountId $Account.id) }
+            if ($config.client_id) { $current = [pscustomobject]@{ ClientId = [string]$config.client_id; ClientSecret = [string]$config.client_secret } }
+        }
+        catch { Write-CdLog -Level WARN -Component 'Wizard' -Message "Current client of '$($Account.id)' unavailable: $($_.Exception.Message)" }
+        if ($current) { Write-CdInfo -Text (Get-CdText 'client.current' (Get-CdText 'client.currentOwn' $current.ClientId)) }
+        else { Write-CdInfo -Text (Get-CdText 'client.current' (Get-CdText 'client.currentShared')) }
+        Write-CdInfo -Text (Get-CdText 'client.explain') -Color DarkGray
+        $client = Read-CdGoogleClient -Kind $Account.kind -Current $current
+        if (-not $client) { return $false }
+    }
+    elseif ($Account.provider -eq 'drive' -and $Account.clientId -ne 'own') {
+        Write-CdInfo -Text (Get-CdText 'relogin.sharedClientHint') -Color Yellow
+    }
+
+    Write-CdStep -Text (Get-CdText 'relogin.step' $Account.label)
+    Write-CdInfo -Text (Get-CdText 'relogin.explain') -Color DarkGray
+    if ($Account.identity -and $Account.identity.name) { Write-CdInfo -Text (Get-CdText 'relogin.useAccount' $Account.identity.name) -Color White }
+    else { Write-CdInfo -Text (Get-CdText 'relogin.useSameAccount' $Account.label) -Color White }
+    $mounted = Get-CdMountedDrives
+    $letters = @((Get-CdSettings).drives | Where-Object { $_.account -eq $Account.id -and $mounted.ContainsKey("$($_.letter):".ToUpperInvariant()) } | ForEach-Object { "$($_.letter):" }) -join ', '
+    if ($letters) { Write-CdInfo -Text (Get-CdText 'relogin.reconnectHint' $letters) -Color Yellow }
+    if (-not (Read-CdYesNo -Prompt (Get-CdText 'relogin.confirm') -Default $true)) { return $false }
+
+    Write-CdStep -Text (Get-CdText 'wizard.add.loginStep' (Get-CdText $definition.NameKey))
+    Write-CdInfo -Text (Get-CdText 'wizard.add.loginExplain')
+    if ($Account.kind -eq 'workspace') { Write-CdInfo -Text (Get-CdText 'wizard.add.workspaceHint') -Color DarkGray }
+    $confirmIdentity = {
+        param($Identity, $Owner)
+        Write-Host ''
+        Read-CdYesNo -Prompt (Get-CdText 'relogin.confirmIdentity' $Identity.Name, $Owner.label) -Default $true
+    }
+    try {
+        $result = Update-CdAccountLogin -AccountId $Account.id -ClientId $client.ClientId -ClientSecret $client.ClientSecret `
+            -OnAuthUrl { param([string]$Url) Show-CdAuthUrl -Url $Url } -ShouldCancel { Test-CdEscapePressed } -ConfirmIdentity $confirmIdentity
+    }
+    catch {
+        Write-CdErrorInfo -Info (Get-CdErrorInfo $_)
+        if (-not $Embedded) { Wait-CdKeyPress }
+        return $false
+    }
+    Write-Host ''
+    Write-CdOk -Text $result.Message
+    if ($result.Data.Identity.Name) { Write-CdInfo -Text (Get-CdText 'relogin.signedInAs' $result.Data.Identity.Name) }
+    foreach ($item in @($result.Data.Drives)) { Write-CdResult -Result $item }
+    Remove-CdClientFileUi -Client $client
+    if (-not $Embedded) { Wait-CdKeyPress }
+    $true
 }
 
 function Start-CdRemoveAccountWizard {

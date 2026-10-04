@@ -3,8 +3,25 @@
 function Invoke-CdConnectUi {
     param([string[]]$Selection = @('all'))
     Write-CdStep -Text (Get-CdText 'connect.running')
-    $results = Invoke-CdConnect -Selection $Selection -AllowInstall -OnResult { param($Result) Write-CdResult -Result $Result }
-    if (@($results).Count -eq 0) { Write-CdInfo -Text (Get-CdText 'status.noDrives') }
+    $results = @(Invoke-CdConnect -Selection $Selection -AllowInstall -OnResult { param($Result) Write-CdResult -Result $Result })
+    if ($results.Count -eq 0) { Write-CdInfo -Text (Get-CdText 'status.noDrives') }
+
+    # An expired or revoked sign-in can be renewed right here; afterwards the affected drives are retried.
+    $expired = @($results | Where-Object {
+            $entry = Get-CdErrorEntry -Code ([string]$_.Code)
+            -not $_.Success -and $_.Data -and $_.Data.account -and $entry -and $entry.action -eq 'reconnect-account'
+        } | ForEach-Object { [string]$_.Data.account } | Select-Object -Unique)
+    foreach ($accountId in $expired) {
+        $account = Get-CdAccount -Id $accountId
+        if (-not $account) { continue }
+        Write-Host ''
+        Write-CdInfo -Text (Get-CdText 'relogin.offer' $account.label) -Color Yellow
+        if (-not (Read-CdYesNo -Prompt (Get-CdText 'relogin.confirm') -Default $true)) { continue }
+        $renewed = @(Start-CdReloginWizard -Account $account -Embedded) | Where-Object { $_ -is [bool] } | Select-Object -Last 1
+        if (-not $renewed) { continue }
+        $retry = @($results | Where-Object { -not $_.Success -and $_.Data -and $_.Data.account -eq $accountId } | ForEach-Object { [string]$_.Data.id })
+        if ($retry.Count -gt 0) { [void](Invoke-CdConnect -Selection $retry -OnResult { param($Result) Write-CdResult -Result $Result }) }
+    }
     Wait-CdKeyPress
 }
 
@@ -88,7 +105,7 @@ function Start-CdConsoleMenu {
         Write-Host ''
         $menu = @(
             @('1', 'menu.connectAll', '2', 'menu.disconnectAll'),
-            @('3', 'menu.addAccount', '4', 'menu.removeAccount'),
+            @('3', 'menu.addAccount', '4', 'menu.manageAccounts'),
             @('5', 'menu.manageDrives', '6', 'menu.settings'),
             @('7', 'menu.openLogs', '8', 'menu.refresh')
         )
@@ -103,7 +120,7 @@ function Start-CdConsoleMenu {
                 '1' { Invoke-CdConnectUi }
                 '2' { Invoke-CdDisconnectUi }
                 '3' { Start-CdAddAccountWizard }
-                '4' { Start-CdRemoveAccountWizard }
+                '4' { Start-CdManageAccountsMenu }
                 '5' { Start-CdManageDrivesMenu }
                 '6' { if ((Start-CdSettingsMenu) -eq 'exit') { return 0 } }
                 '7' { Start-Process -FilePath 'explorer.exe' -ArgumentList @((Get-CdContext).LogDir) }

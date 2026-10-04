@@ -17,6 +17,14 @@ All notable changes to CloudDrives are documented here. The format follows
   - afterwards CloudDrives restarts from the program folder (also after the first installation)
 - Daily update hint after the autostart
 - `uninstall`, optionally including all local sign-ins and settings
+- "Manage accounts": sign an account in again or change its Google client ID without removing it
+  - the browser sign-in runs on a temporary remote; the account changes only when the new sign-in works
+  - it must belong to the same cloud account (Google user ID, OneDrive drive ID), otherwise nothing changes (CD-3009)
+  - mounted drives of the account reconnect with the new sign-in
+  - offered right away when connecting fails because a sign-in expired; notifications say where to renew it
+  - command line: `relogin|neu-anmelden [<account>]`, `change-client|client-id [<account>]`
+- Accounts remember who is signed in (also learned for existing accounts while connecting); the same cloud
+  account cannot be added twice (CD-3010)
 - Autostart at Windows sign-in, with notifications when something goes wrong
 - Settings menu
 - Rename drives

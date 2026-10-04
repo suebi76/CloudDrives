@@ -46,6 +46,9 @@ function Invoke-CdConnect {
         if ($OnResult) { & $OnResult $result }
         $result
     }
+    # Learn who is signed in on older accounts while their sign-in works (needed to check a later sign-in).
+    $connected = @($results | Where-Object { $_.Success -and $_.Data -and $_.Data.account } | ForEach-Object { [string]$_.Data.account } | Select-Object -Unique)
+    if ($connected.Count -gt 0) { Update-CdAccountIdentities -AccountIds $connected }
     @($results)
 }
 

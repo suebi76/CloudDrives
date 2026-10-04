@@ -63,5 +63,9 @@ function Send-CdConnectSummary {
         return
     }
     $lines = foreach ($item in $failed) { '{0} - {1}' -f $item.Message, (Get-CdText "error.$($item.Code).title") }
-    [void](Show-CdNotification -Title (Get-CdText 'notify.problemTitle') -Message ((@($lines) -join "`n") + "`n" + (Get-CdText 'notify.openHint')) -Kind 'Warning')
+    # An expired sign-in needs the user; say where to renew it.
+    $hint = Get-CdText 'notify.openHint'
+    $signInExpired = @($failed | Where-Object { $entry = Get-CdErrorEntry -Code ([string]$_.Code); $entry -and $entry.action -eq 'reconnect-account' })
+    if ($signInExpired.Count -gt 0) { $hint = Get-CdText 'notify.reloginHint' }
+    [void](Show-CdNotification -Title (Get-CdText 'notify.problemTitle') -Message ((@($lines) -join "`n") + "`n" + $hint) -Kind 'Warning')
 }

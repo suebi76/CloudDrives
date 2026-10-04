@@ -98,6 +98,157 @@ function Get-CdAccountQuota {
     }
 }
 
+function ConvertFrom-CdOAuthToken {
+    # The access token from rclone's "token" value (a JSON blob), or $null.
+    param([AllowNull()][AllowEmptyString()][string]$Token)
+    if ([string]::IsNullOrWhiteSpace($Token)) { return $null }
+    try { return [string]($Token | ConvertFrom-Json).access_token }
+    catch { return $null }
+}
+
+function Get-CdRemoteIdentity {
+    # Who is signed in on a remote: @{ Id; Name } with a stable account ID and a display name, or $null.
+    # A request through rclone comes first: it renews an expired access token and stores it in the config.
+    param(
+        [Parameter(Mandatory)][string]$RemoteName,
+        [Parameter(Mandatory)][string]$Provider,
+        [int]$TimeoutSec = 20
+    )
+    $definition = Get-CdProvider -Id $Provider
+    if (-not $definition -or -not $definition.ContainsKey('GetIdentity')) { return $null }
+    $signedIn = $true
+    try { [void](Get-CdRemoteAbout -RemoteName $RemoteName -CacheSec 60 -TimeoutSec $TimeoutSec) }
+    catch {
+        $signedIn = $false
+        Write-CdLog -Level DEBUG -Component 'Accounts' -Message "'$RemoteName' is not usable right now: $((Get-CdErrorInfo $_).Code)"
+    }
+    $config = Invoke-CdRc -Command 'config/get' -Body @{ name = $RemoteName }
+    $accessToken = $null
+    if ($signedIn) { $accessToken = ConvertFrom-CdOAuthToken -Token ([string]$config.token) }
+    & $definition.GetIdentity ([pscustomobject]@{ Config = $config; AccessToken = $accessToken })
+}
+
+function Update-CdAccountIdentities {
+    # Remembers who is signed in on accounts that do not know it yet (accounts added before this check
+    # existed), so that a later sign-in can be compared with it - even when that sign-in has expired.
+    param([AllowEmptyCollection()][string[]]$AccountIds = @())
+    $settings = Get-CdSettings
+    $changed = $false
+    foreach ($account in @($settings.accounts | Where-Object { $AccountIds -contains $_.id -and -not ($_.identity -and $_.identity.id) })) {
+        try {
+            $identity = Get-CdRemoteIdentity -RemoteName (Get-CdAccountRemoteName -AccountId $account.id) -Provider $account.provider -TimeoutSec 10
+            if ($identity) {
+                $account.identity = [ordered]@{ id = $identity.Id; name = $identity.Name }
+                $changed = $true
+            }
+        }
+        catch { Write-CdLog -Level DEBUG -Component 'Accounts' -Message "Identity of '$($account.id)' unavailable: $((Get-CdErrorInfo $_).Code)" }
+    }
+    if ($changed) {
+        Save-CdSettings -Settings $settings
+        Write-CdLog -Component 'Accounts' -Message 'Stored the signed-in identity of existing accounts.'
+    }
+}
+
+function Update-CdAccountLogin {
+    # Signs an existing account in again - after an expired or revoked sign-in, or with another OAuth client -
+    # without removing it. The browser sign-in runs on a temporary remote; the account's remote only changes
+    # once the new sign-in works and belongs to the same cloud account, so a cancelled or wrong sign-in changes
+    # nothing. Mounted drives of the account are reconnected afterwards to use the new sign-in right away.
+    param(
+        [Parameter(Mandatory)][string]$AccountId,
+        [string]$ClientId,
+        [string]$ClientSecret,
+        [scriptblock]$OnAuthUrl,
+        [scriptblock]$ShouldCancel,
+        # Called with (identity, account) when the previous identity is unknown; must return $true to go on.
+        [scriptblock]$ConfirmIdentity
+    )
+    $account = Get-CdAccount -Id $AccountId
+    if (-not $account) { throw (New-CdException -Code 'CD-2006' -Detail "unknown account '$AccountId'") }
+    $definition = Get-CdProvider -Id $account.provider
+    $remote = Get-CdAccountRemoteName -AccountId $AccountId
+    $signIn = Get-CdSignInRemoteName -AccountId $AccountId
+
+    [void](Start-CdEngine)
+    $exists = (Get-CdRemoteNames) -contains $remote
+    $current = $null
+    if ($exists) { $current = Invoke-CdRc -Command 'config/get' -Body @{ name = $remote } }
+    if (-not $ClientId -and $current -and $current.client_id) {
+        $ClientId = [string]$current.client_id
+        $ClientSecret = [string]$current.client_secret
+    }
+    $clientChanged = $exists -and ([string]$ClientId -ne [string]$current.client_id -or [string]$ClientSecret -ne [string]$current.client_secret)
+
+    # The identity the new sign-in has to match.
+    $expected = $null
+    if ($account.identity -and $account.identity.id) {
+        $expected = [pscustomobject]@{ Id = [string]$account.identity.id; Name = [string]$account.identity.name }
+    }
+    elseif ($exists) {
+        try { $expected = Get-CdRemoteIdentity -RemoteName $remote -Provider $account.provider -TimeoutSec 15 }
+        catch { Write-CdLog -Level DEBUG -Component 'Accounts' -Message "Previous identity of '$AccountId' unknown: $((Get-CdErrorInfo $_).Code)" }
+    }
+
+    Remove-CdRemoteIfPresent -Name $signIn
+    $parameters = & $definition.NewParameters $ClientId $ClientSecret
+    [void](Invoke-CdOAuthRemoteCreate -RemoteName $signIn -RcloneType $definition.RcloneType -Parameters $parameters -OnAuthUrl $OnAuthUrl -ShouldCancel $ShouldCancel)
+    try {
+        $identity = Get-CdRemoteIdentity -RemoteName $signIn -Provider $account.provider
+        if (-not $identity) { throw (New-CdException -Code 'CD-3008' -Detail 'the new sign-in could not be verified') }
+        if ($expected -and $identity.Id -ne $expected.Id) {
+            Write-CdLog -Level WARN -Component 'Accounts' -Message "New sign-in of '$AccountId' belongs to another account - discarded."
+            throw (New-CdException -Code 'CD-3009' -Detail (Get-CdText 'relogin.otherAccount' $identity.Name, $expected.Name))
+        }
+        if (-not $expected -and $ConfirmIdentity -and -not (& $ConfirmIdentity $identity $account)) {
+            throw (New-CdException -Code 'CD-3004' -Detail 'the signed-in account was not confirmed')
+        }
+
+        # Take over the new sign-in: only the values the browser sign-in produced, without running rclone's
+        # configuration dialog again (nonInteractive stops at its first question, after storing the values).
+        $new = Invoke-CdRc -Command 'config/get' -Body @{ name = $signIn }
+        $values = [ordered]@{}
+        foreach ($key in @('client_id', 'client_secret')) {
+            # An empty value clears an own client the account no longer uses.
+            if ($new.$key -or ($current -and $current.$key)) { $values[$key] = [string]$new.$key }
+        }
+        foreach ($key in @('token', 'drive_id', 'drive_type')) {
+            if ($new.$key) { $values[$key] = [string]$new.$key }
+        }
+        Backup-CdRcloneConfig
+        if ($exists) {
+            [void](Invoke-CdRc -Command 'config/update' -Body @{ name = $remote; parameters = $values; opt = @{ nonInteractive = $true; noObscure = $true } })
+        }
+        else {
+            foreach ($property in $new.PSObject.Properties) {
+                if ($property.Name -ne 'type' -and -not $values.Contains($property.Name)) { $values[$property.Name] = [string]$property.Value }
+            }
+            [void](Invoke-CdRc -Command 'config/create' -Body @{ name = $remote; type = $definition.RcloneType; parameters = $values; opt = @{ nonInteractive = $true; noObscure = $true } })
+        }
+    }
+    finally {
+        Remove-CdRemoteIfPresent -Name $signIn
+    }
+    # Drop cached connections that still use the old sign-in.
+    try { [void](Invoke-CdRc -Command 'fscache/clear') } catch { Write-CdLog -Level DEBUG -Component 'Accounts' -Message "fscache/clear: $($_.Exception.Message)" }
+    $script:CdQuotaCache.Remove($remote)
+
+    $settings = Get-CdSettings
+    $entry = @($settings.accounts | Where-Object { $_.id -eq $AccountId })[0]
+    $entry.identity = [ordered]@{ id = $identity.Id; name = $identity.Name }
+    $entry.clientId = $(if ($values.client_id) { 'own' } else { 'default' })
+    Save-CdSettings -Settings $settings
+    Write-CdLog -Component 'Accounts' -Message "Account '$AccountId' signed in again (client changed: $clientChanged)."
+
+    $drives = @(Restart-CdAccountDrives -AccountId $AccountId)
+    New-CdResult -Message (Get-CdText 'relogin.done' $account.label) -Data ([pscustomobject]@{
+            Account       = $entry
+            Identity      = $identity
+            ClientChanged = $clientChanged
+            Drives        = $drives
+        })
+}
+
 function Get-CdOwnGoogleClients {
     # Own client IDs already used by configured Google accounts, so the user sets one up only once.
     $clients = New-Object System.Collections.Generic.List[object]
@@ -145,6 +296,19 @@ function Add-CdAccount {
         throw
     }
 
+    # Remember who signed in, and refuse the same cloud account twice (more folders of one account become
+    # additional drives instead).
+    $identity = $null
+    try { $identity = Get-CdRemoteIdentity -RemoteName $remote -Provider $Provider }
+    catch { Write-CdLog -Level WARN -Component 'Accounts' -Message "Identity of the new account unavailable: $((Get-CdErrorInfo $_).Code)" }
+    if ($identity) {
+        $duplicate = @($settings.accounts | Where-Object { $_.provider -eq $Provider -and $_.identity -and $_.identity.id -eq $identity.Id }) | Select-Object -First 1
+        if ($duplicate) {
+            Remove-CdRemoteIfPresent -Name $remote
+            throw (New-CdException -Code 'CD-3010' -Detail (Get-CdText 'account.duplicate' $identity.Name, $duplicate.label))
+        }
+    }
+
     $clientMode = 'default'
     if ($ClientId) { $clientMode = 'own' }
     $account = [ordered]@{
@@ -155,10 +319,11 @@ function Add-CdAccount {
         clientId = $clientMode
         added    = (Get-Date).ToString('yyyy-MM-dd')
     }
+    if ($identity) { $account.identity = [ordered]@{ id = $identity.Id; name = $identity.Name } }
     $settings.accounts = Add-CdArrayItem -Array $settings.accounts -Item $account
     Save-CdSettings -Settings $settings
     Write-CdLog -Component 'Accounts' -Message "Account '$id' ($Provider/$Kind) added."
-    New-CdResult -Message (Get-CdText 'account.added' $Label) -Data ([pscustomobject]@{ Account = $account; About = $about })
+    New-CdResult -Message (Get-CdText 'account.added' $Label) -Data ([pscustomobject]@{ Account = $account; About = $about; Identity = $identity })
 }
 
 function Remove-CdAccount {

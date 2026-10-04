@@ -1,12 +1,15 @@
 ﻿# Command-line front end. "CloudDrives.bat" without arguments opens the menu; otherwise:
 #   connect|verbinden [all|<drive>...] [--silent]    disconnect|trennen [all|<drive>...] [--force]
-#   status [--json]   add-account   remove-account   setup   version   help
+#   status [--json]   add-account   remove-account   relogin|neu-anmelden [<account>]
+#   change-client|client-id [<account>]   autostart   install   update   uninstall   setup   version   help
 
 $script:CdCommandAliases = @{
     'verbinden'        = 'connect'
     'trennen'          = 'disconnect'
     'konto-hinzufuegen' = 'add-account'
     'konto-entfernen'  = 'remove-account'
+    'neu-anmelden'     = 'relogin'
+    'client-id'        = 'change-client'
     'einrichten'       = 'setup'
     'installieren'     = 'install'
     'aktualisieren'    = 'update'
@@ -130,6 +133,28 @@ function Invoke-CdCommandLineAutostart {
     }
 }
 
+function Resolve-CdAccountArgument {
+    # Finds an account by id, label or the letter of one of its drives ("gpro", "Google Pro", "K").
+    param([Parameter(Mandatory)][string]$Value)
+    $settings = Get-CdSettings
+    $match = @($settings.accounts | Where-Object { $_.id -eq $Value -or $_.label -eq $Value }) | Select-Object -First 1
+    if (-not $match) {
+        $drive = @($settings.drives | Where-Object { $_.letter -eq $Value.TrimEnd(':') }) | Select-Object -First 1
+        if ($drive) { $match = Get-CdAccount -Id $drive.account }
+    }
+    if (-not $match) { throw (New-CdException -Code 'CD-2006' -Detail "unknown account '$Value'") }
+    $match
+}
+
+function Invoke-CdCommandLineRelogin {
+    param([pscustomobject]$Parsed, [switch]$ChangeClient)
+    $account = $null
+    if ($Parsed.Targets.Count -gt 0) { $account = Resolve-CdAccountArgument -Value $Parsed.Targets[0] }
+    $done = @(Start-CdReloginWizard -Account $account -ChangeClient:$ChangeClient) | Where-Object { $_ -is [bool] } | Select-Object -Last 1
+    if ($done) { return 0 }
+    1
+}
+
 function Invoke-CdCommandLineStatus {
     param([pscustomobject]$Parsed)
     $status = Get-CdStatus
@@ -195,6 +220,8 @@ function Invoke-CdCli {
             'uninstall' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineUninstall -Parsed $parsed) }
             'add-account' { $null = Start-CdAddAccountWizard }
             'remove-account' { $null = Start-CdRemoveAccountWizard }
+            'relogin' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineRelogin -Parsed $parsed) }
+            'change-client' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineRelogin -Parsed $parsed -ChangeClient) }
             'setup' {
                 $ready = @(Start-CdSetupWizard) | Where-Object { $_ -is [bool] } | Select-Object -Last 1
                 if (-not $ready) { $exitCode = 2 }

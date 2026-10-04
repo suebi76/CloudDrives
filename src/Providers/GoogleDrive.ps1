@@ -65,4 +65,14 @@ Register-CdProvider @{
         }
         $parameters
     }
+    # Who is signed in: Drive's "about" names the user. The permission ID is stable, the address is shown.
+    GetIdentity      = {
+        param([object]$SignIn)
+        if (-not $SignIn.AccessToken) { return $null }
+        $about = Invoke-CdApiGet -Uri 'https://www.googleapis.com/drive/v3/about?fields=user(displayName,emailAddress,permissionId)' -AccessToken $SignIn.AccessToken
+        if (-not $about.user.permissionId) { return $null }
+        $name = [string]$about.user.emailAddress
+        if (-not $name) { $name = [string]$about.user.displayName }
+        [pscustomobject]@{ Id = [string]$about.user.permissionId; Name = $name }
+    }
 }
