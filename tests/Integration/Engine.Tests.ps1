@@ -248,3 +248,53 @@ Describe 'Encrypted vaults' -Skip:(-not $script:CanRun) {
         }
     }
 }
+
+Describe 'Diagnosis and support bundle' -Skip:(-not $script:CanRun) {
+    It 'checks the engine, the account and a connected drive' {
+        InModuleScope CloudDrives {
+            $drive = @((Get-CdSettings).drives) | Where-Object { -not $_.encrypted } | Select-Object -First 1
+            [void](Start-CdEngine)
+            [void](Mount-CdDrive -Drive $drive)
+            $checks = @(Invoke-CdDoctor)
+            ($checks | Where-Object { $_.Area -eq 'engine' -and $_.Name -eq (Get-CdText 'doctor.engine') }).Status | Should -Be 'ok'
+            ($checks | Where-Object { $_.Name -eq 'rclone' }).Status | Should -Be 'ok'
+            ($checks | Where-Object { $_.Area -eq 'accounts' -and $_.Target -eq 'itest' }).Status | Should -Not -Be 'fail'
+            $driveCheck = $checks | Where-Object { $_.Area -eq 'drives' -and $_.Target -eq $drive.id -and -not $_.Fix }
+            $driveCheck.Status | Should -Be 'ok'
+            $driveCheck.Message | Should -Match ([regex]::Escape((Get-CdText 'doctor.driveOk' 'x').Split('x')[0]))
+            $script:DoctorChecks = $checks
+        }
+    }
+
+    It 'writes a support bundle without the secrets the engine knows' {
+        InModuleScope CloudDrives {
+            # A remote with a token, like an OAuth account has one.
+            $probe = [ordered]@{ scope = 'drive'; token = '{"access_token":"probe-access-token-4711"}' }
+            [void](Invoke-CdRc -Command 'config/create' -Body @{ name = 'cd-secret-probe'; type = 'drive'; parameters = $probe; opt = @{ nonInteractive = $true; noObscure = $true } })
+            try {
+                $zip = Join-Path (Get-CdContext).Home 'support.zip'
+                (New-CdSupportBundle -Checks $script:DoctorChecks -Path $zip).Success | Should -BeTrue
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                $archive = [IO.Compression.ZipFile]::OpenRead($zip)
+                try {
+                    $text = (@($archive.Entries | ForEach-Object {
+                                $reader = New-Object IO.StreamReader($_.Open())
+                                try { $reader.ReadToEnd() } finally { $reader.Dispose() }
+                            }) -join "`n")
+                }
+                finally { $archive.Dispose() }
+                $text | Should -Match 'cd-secret-probe'
+                $text | Should -Not -Match 'probe-access-token-4711'
+
+                # A secret that got into a log anyhow must stop the bundle.
+                $log = Join-Path (Get-CdContext).LogDir ('clouddrives-{0}.log' -f (Get-Date).ToString('yyyy-MM-dd'))
+                [IO.File]::AppendAllLines($log, [string[]]@('leaked probe-access-token-4711'))
+                $leaky = Join-Path (Get-CdContext).Home 'leaky.zip'
+                try { [void](New-CdSupportBundle -Checks $script:DoctorChecks -Path $leaky); throw 'expected an error' }
+                catch { Get-CdErrorCode $_ | Should -Be 'CD-9003' }
+                Test-Path -LiteralPath $leaky | Should -BeFalse
+            }
+            finally { Remove-CdRemote -Name 'cd-secret-probe' }
+        }
+    }
+}
