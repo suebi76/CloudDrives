@@ -1,0 +1,41 @@
+# Quality gate for every push to main and every pull request: source normalisation, PSScriptAnalyzer and the
+# unit tests in Windows PowerShell 5.1 and PowerShell 7. The integration tests need WinFsp, a desktop session
+# and the Task Scheduler and run locally (tools\Invoke-Build.ps1 -Edition Both -Integration).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint and unit tests (PowerShell 5.1 and 7)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Quality gate
+        shell: pwsh
+        run: ./tools/Invoke-Build.ps1 -Edition Both
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/
+          if-no-files-found: ignore
+
+  secrets:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

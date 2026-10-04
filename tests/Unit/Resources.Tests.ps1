@@ -60,6 +60,25 @@ Describe 'Error catalog' {
     }
 }
 
+Describe 'Documentation' {
+    It 'docs/TROUBLESHOOTING.md matches the current error catalog' {
+        $temp = Join-Path ([IO.Path]::GetTempPath()) ('troubleshooting-' + [guid]::NewGuid().ToString('N') + '.md')
+        try {
+            & (Join-Path $script:RepoRoot 'tools\New-TroubleshootingDoc.ps1') -OutFile $temp 6>$null
+            [IO.File]::ReadAllText($temp) | Should -Be ([IO.File]::ReadAllText((Join-Path $script:RepoRoot 'docs\TROUBLESHOOTING.md'))) -Because 'tools\New-TroubleshootingDoc.ps1 must be run after changing error codes or their texts'
+        }
+        finally { Remove-Item -LiteralPath $temp -ErrorAction SilentlyContinue }
+    }
+
+    It 'has release notes for the current version' {
+        $manifest = [IO.File]::ReadAllText((Join-Path $script:SrcRoot 'CloudDrives.psd1'))
+        $version = [regex]::Match($manifest, "ModuleVersion\s*=\s*'([0-9.]+)'").Groups[1].Value
+        $notes = & (Join-Path $script:RepoRoot 'tools\Get-ReleaseNotes.ps1') -Version $version
+        $notes | Should -Match '### Added'
+        $notes | Should -Not -Match '^## \['
+    }
+}
+
 Describe 'Dependencies' {
     It 'pins rclone with SHA256 checksums for all Windows architectures' {
         $script:Deps.rclone.version | Should -Match '^\d+\.\d+\.\d+$'
