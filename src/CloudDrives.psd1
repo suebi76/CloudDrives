@@ -1,6 +1,6 @@
 ﻿@{
     RootModule           = 'CloudDrives.psm1'
-    ModuleVersion        = '0.2.1'
+    ModuleVersion        = '0.2.2'
     GUID                 = '0edc3a22-ce54-4e92-8d9f-49ba4f0cadc9'
     Author               = 'Steffen Schwabe'
     Copyright            = '(c) 2026 Steffen Schwabe. MIT License.'

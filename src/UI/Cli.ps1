@@ -169,7 +169,7 @@ function Invoke-CdCommandLineDoctor {
         }
         $checks = @(Invoke-CdDoctor)
     }
-    if ($json) { [Console]::Out.WriteLine((ConvertTo-Json -InputObject @($checks | Select-Object Area, Name, Status, Message, Code, Fix, Target) -Depth 4)) }
+    if ($json) { [Console]::Out.WriteLine((ConvertTo-CdJsonText -InputObject @($checks | Select-Object Area, Name, Status, Message, Code, Fix, Target) -Depth 4)) }
     else {
         Write-CdHeader -Subtitle (Get-CdText 'doctor.title')
         Show-CdDoctorReport -Checks $checks
@@ -250,7 +250,7 @@ function Invoke-CdCommandLineStatus {
                     }
                 })
         }
-        [Console]::Out.WriteLine((ConvertTo-Json -InputObject $export -Depth 5))
+        [Console]::Out.WriteLine((ConvertTo-CdJsonText -InputObject $export -Depth 5))
         return 0
     }
     Write-CdHeader

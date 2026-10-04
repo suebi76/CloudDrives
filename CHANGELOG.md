@@ -3,6 +3,13 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.2.2] – 2026-10-04
+
+### Fixed
+
+- `status --json` and `diagnose --json` escape characters outside ASCII (`\u00fc`). Scripts in Windows PowerShell 5.1
+  read umlauts in drive names and messages intact instead of garbled by the console code page.
+
 ## [0.2.1] – 2026-10-04
 
 ### Fixed
