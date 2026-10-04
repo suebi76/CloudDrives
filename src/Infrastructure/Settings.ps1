@@ -43,6 +43,8 @@ function New-CdDefaultSettings {
         logLevel      = 'INFO'
         notifications = 'errors'
         autostartAsked = $false
+        installAsked  = $false
+        lastUpdateCheck = ''
         profile       = 'standard'
         cache         = [ordered]@{ dir = ''; maxSizePerDrive = '10G'; maxAge = '24h' }
         accounts      = @()

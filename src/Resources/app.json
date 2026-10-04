@@ -1,0 +1,16 @@
+{
+  "repository": "suebi76/CloudDrives",
+  "packageName": "CloudDrives-{version}.zip",
+  "checksumFile": "SHA256SUMS.txt",
+  "packageItems": [
+    "CloudDrives.bat",
+    "install.ps1",
+    "src",
+    "docs",
+    "LICENSE",
+    "README.md",
+    "PRIVACY.md",
+    "SECURITY.md",
+    "CHANGELOG.md"
+  ]
+}

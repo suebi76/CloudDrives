@@ -45,17 +45,31 @@ function Start-CdConsoleMenu {
         if (-not $ready) { return 2 }
         $setup = Get-CdSetupState
     }
+    if (-not (Test-CdInstalled) -and -not (Get-CdSettings).installAsked) {
+        # Installation comes first, so that autostart and Explorer icons refer to the installed copy.
+        Clear-CdScreen
+        Write-CdHeader
+        $installed = $false
+        try { $installed = [bool](@(Request-CdInstall) | Where-Object { $_ -is [bool] } | Select-Object -Last 1) }
+        catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+        if ($installed) {
+            Restart-CdFromInstallDir
+            return 0
+        }
+        Wait-CdKeyPress
+    }
     if (-not $setup.HasAccounts) {
         Clear-CdScreen
         Write-CdHeader
         Write-CdInfo -Text (Get-CdText 'menu.welcome')
         if (Read-CdYesNo -Prompt (Get-CdText 'menu.welcomeAddAccount') -Default $true) { Start-CdAddAccountWizard }
     }
-    elseif (-not (Get-CdSettings).autostartAsked -and -not (Get-CdAutostart).Enabled) {
+    elseif (-not (Get-CdSettings).autostartAsked -and @((Get-CdSettings).drives).Count -gt 0 -and -not (Get-CdAutostart).Enabled) {
         # Setups created before the autostart existed are asked once, too.
         Clear-CdScreen
         Write-CdHeader
-        try { Request-CdAutostart } catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+        try { Request-CdAutostart }
+        catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
         Wait-CdKeyPress
     }
 
@@ -91,7 +105,7 @@ function Start-CdConsoleMenu {
                 '3' { Start-CdAddAccountWizard }
                 '4' { Start-CdRemoveAccountWizard }
                 '5' { Start-CdManageDrivesMenu }
-                '6' { Start-CdSettingsMenu }
+                '6' { if ((Start-CdSettingsMenu) -eq 'exit') { return 0 } }
                 '7' { Start-Process -FilePath 'explorer.exe' -ArgumentList @((Get-CdContext).LogDir) }
                 '8' { $script:CdQuotaCache = @{} }
                 '0' { return 0 }

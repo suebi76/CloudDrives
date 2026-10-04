@@ -88,10 +88,13 @@ function Start-CdDetachedProcess {
         [Parameter(Mandatory)][string]$FilePath,
         [AllowEmptyCollection()][string[]]$ArgumentList = @(),
         [hashtable]$Environment = @{},
-        [string]$WorkingDirectory
+        [string]$WorkingDirectory,
+        # Passed through unchanged, for programs with their own parsing rules such as cmd.exe.
+        [string]$RawArguments
     )
     if (-not $WorkingDirectory) { $WorkingDirectory = Split-Path -Parent $FilePath }
     $arguments = ConvertTo-CdArgumentString -ArgumentList $ArgumentList
+    if ($RawArguments) { $arguments = $RawArguments }
 
     if (Initialize-CdNative) {
         $environmentTable = @{}

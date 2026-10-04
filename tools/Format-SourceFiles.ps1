@@ -2,6 +2,7 @@
 .SYNOPSIS
     Normalises encodings and line endings of all source files.
 .DESCRIPTION
+    install.ps1            ASCII without BOM, CRLF (it is executed via "irm | iex")
     *.ps1 *.psm1 *.psd1    UTF-8 with BOM, CRLF (Windows PowerShell 5.1 needs the BOM for non-ASCII text)
     *.bat *.cmd            ASCII, CRLF (cmd.exe reads batch files in the OEM code page)
     *.cs *.json *.md       UTF-8 without BOM, CRLF
@@ -15,6 +16,8 @@ param([switch]$Check)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $rules = @(
+    # The web installer runs via "irm | iex", which may not honour a BOM or UTF-8: ASCII only.
+    @{ Pattern = '^install\.ps1$'; Bom = $false; Eol = "`r`n"; AsciiOnly = $true },
     @{ Pattern = '\.(ps1|psm1|psd1)$'; Bom = $true; Eol = "`r`n"; AsciiOnly = $false },
     @{ Pattern = '\.(bat|cmd)$'; Bom = $false; Eol = "`r`n"; AsciiOnly = $true },
     @{ Pattern = '\.(cs|json|md)$'; Bom = $false; Eol = "`r`n"; AsciiOnly = $false },

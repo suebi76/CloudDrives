@@ -475,7 +475,83 @@ function Start-CdRenameDriveWizard {
     Wait-CdKeyPress
 }
 
+function Request-CdInstall {
+    # Offers - once, or on demand - to install the running copy into the program folder.
+    # Returns $true after a successful installation; the caller then hands over to the installed copy.
+    param([switch]$Force)
+    $settings = Get-CdSettings
+    if ((Test-CdInstalled) -or ($settings.installAsked -and -not $Force)) { return $false }
+    Write-CdStep -Text (Get-CdText 'install.question')
+    Write-CdInfo -Text (Get-CdText 'install.explain' (Get-CdInstallDir)) -Color DarkGray
+    $installed = $false
+    if (Read-CdYesNo -Prompt (Get-CdText 'install.confirm') -Default $true) {
+        $desktop = Read-CdYesNo -Prompt (Get-CdText 'install.desktop') -Default $true
+        try {
+            Write-CdResult -Result (Install-CdApplication -Desktop:$desktop)
+            Write-CdInfo -Text (Get-CdText 'install.startHint') -Color Green
+            $installed = $true
+        }
+        catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+    }
+    else { Write-CdInfo -Text (Get-CdText 'install.later') -Color DarkGray }
+    $settings.installAsked = $true
+    Save-CdSettings -Settings $settings
+    $installed
+}
+
+function Restart-CdFromInstallDir {
+    # Opens the installed copy in a new window; the caller ends this one afterwards.
+    Write-CdInfo -Text (Get-CdText 'app.restarting') -Color Green
+    Wait-CdKeyPress
+    try { Start-CdInstalledApplication }
+    catch {
+        Write-CdErrorInfo -Info (Get-CdErrorInfo $_)
+        Wait-CdKeyPress
+    }
+}
+
+function Start-CdUpdateUi {
+    # Returns $true after an update was installed; the caller then restarts CloudDrives.
+    Write-CdStep -Text (Get-CdText 'update.checking')
+    $updated = $false
+    try {
+        $state = Get-CdUpdateState
+        if (-not $state.Latest) { Write-CdInfo -Text (Get-CdText 'error.CD-8004.title') }
+        elseif (-not $state.Available) { Write-CdOk -Text (Get-CdText 'update.upToDate' ([string]$state.Current)) }
+        elseif (-not (Test-CdInstalled)) { Write-CdInfo -Text (Get-CdText 'update.notInstalled' ([string]$state.Latest)) -Color Yellow }
+        else {
+            Write-CdInfo -Text (Get-CdText 'update.available' ([string]$state.Latest), ([string]$state.Current))
+            if (Read-CdYesNo -Prompt (Get-CdText 'update.confirm') -Default $true) {
+                $result = Install-CdUpdate
+                Write-CdResult -Result $result
+                $updated = [bool]($result.Success -and $result.Data)
+            }
+        }
+    }
+    catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+    if (-not $updated) { Wait-CdKeyPress }
+    $updated
+}
+
+function Start-CdUninstallUi {
+    Write-CdInfo -Text (Get-CdText 'uninstall.explain') -Color Yellow
+    if (-not (Read-CdYesNo -Prompt (Get-CdText 'uninstall.confirm') -Default $false)) { return $false }
+    $removeData = Read-CdYesNo -Prompt (Get-CdText 'uninstall.removeData') -Default $false
+    try {
+        Write-CdResult -Result (Uninstall-CdApplication -RemoveData:$removeData)
+        Write-CdInfo -Text (Get-CdText 'uninstall.winfspNote') -Color DarkGray
+        Wait-CdKeyPress
+        return $true
+    }
+    catch {
+        Write-CdErrorInfo -Info (Get-CdErrorInfo $_)
+        Wait-CdKeyPress
+        return $false
+    }
+}
+
 function Start-CdSettingsMenu {
+    # Returns 'exit' when CloudDrives must end (after uninstalling, or because the installed copy took over).
     while ($true) {
         Clear-CdScreen
         Write-CdHeader -Subtitle (Get-CdText 'settings.title')
@@ -483,10 +559,34 @@ function Start-CdSettingsMenu {
         $autostart = Get-CdAutostart
         $autostartText = Get-CdText 'settings.off'
         if ($autostart.Enabled) { $autostartText = Get-CdText 'settings.on' }
+        $ctx = Get-CdContext
+        if (Test-CdInstalled) { Write-CdInfo -Text (Get-CdText 'settings.version' $ctx.Version, $ctx.AppRoot) -Color DarkGray }
+        else { Write-CdInfo -Text (Get-CdText 'settings.versionNotInstalled' $ctx.Version, $ctx.AppRoot) -Color DarkGray }
+        Write-Host ''
         Write-CdInfo -Text ('[1] ' + (Get-CdText 'settings.autostart' $autostartText)) -Color White
         Write-CdInfo -Text ('[2] ' + (Get-CdText 'settings.notifications' (Get-CdText "settings.notifications.$($settings.notifications)"))) -Color White
+        Write-CdInfo -Text ('[3] ' + (Get-CdText 'settings.checkUpdates')) -Color White
+        $valid = @('1', '2', '3', '4', '0')
+        if (Test-CdInstalled) { Write-CdInfo -Text ('[4] ' + (Get-CdText 'settings.uninstall')) -Color White }
+        else { Write-CdInfo -Text ('[4] ' + (Get-CdText 'settings.install')) -Color White }
         Write-CdInfo -Text ('[0] ' + (Get-CdText 'manage.back')) -Color White
-        switch (Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '0')) {
+        switch (Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid $valid) {
+            '3' {
+                if (@(Start-CdUpdateUi) | Where-Object { $_ -is [bool] } | Select-Object -Last 1) {
+                    Restart-CdFromInstallDir
+                    return 'exit'
+                }
+            }
+            '4' {
+                if (Test-CdInstalled) {
+                    if (Start-CdUninstallUi) { return 'exit' }
+                }
+                elseif (@(Request-CdInstall -Force) | Where-Object { $_ -is [bool] } | Select-Object -Last 1) {
+                    Restart-CdFromInstallDir
+                    return 'exit'
+                }
+                else { Wait-CdKeyPress }
+            }
             '1' {
                 try {
                     if ($autostart.Enabled) { Write-CdResult -Result (Disable-CdAutostart) }

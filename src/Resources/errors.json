@@ -39,6 +39,11 @@
     { "code": "CD-6003", "action": "vault-password", "patterns": [] },
     { "code": "CD-6004", "action": null, "patterns": [] },
     { "code": "CD-7002", "action": null, "patterns": [] },
+    { "code": "CD-8001", "action": null, "patterns": [] },
+    { "code": "CD-8002", "action": null, "patterns": [] },
+    { "code": "CD-8003", "action": null, "patterns": [] },
+    { "code": "CD-8004", "action": null, "patterns": [] },
+    { "code": "CD-8005", "action": null, "patterns": [] },
     { "code": "CD-9000", "action": null, "patterns": [] },
     { "code": "CD-9001", "action": null, "patterns": [] },
     { "code": "CD-9002", "action": null, "patterns": [] }

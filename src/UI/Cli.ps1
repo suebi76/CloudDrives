@@ -8,6 +8,9 @@ $script:CdCommandAliases = @{
     'konto-hinzufuegen' = 'add-account'
     'konto-entfernen'  = 'remove-account'
     'einrichten'       = 'setup'
+    'installieren'     = 'install'
+    'aktualisieren'    = 'update'
+    'deinstallieren'   = 'uninstall'
     'hilfe'            = 'help'
     '-?'               = 'help'
     '/?'               = 'help'
@@ -55,13 +58,14 @@ function Invoke-CdCommandLineConnect {
     param([pscustomobject]$Parsed)
     $silent = [bool]$Parsed.Flags['silent']
     $selection = $Parsed.Targets
-    $results = @(Invoke-CdConnect -Selection $selection -Silent:$silent -OnResult {
+    $results = @(Invoke-CdConnect -Selection $selection -Silent:$silent -AllowInstall -OnResult {
             param($Result)
             if (-not $silent) { Write-CdResult -Result $Result }
         })
     $failed = @($results | Where-Object { -not $_.Success })
     foreach ($item in $failed) { Write-CdLog -Level WARN -Component 'Cli' -Message "connect: $($item.Code) $($item.Message)" }
     if ($silent) { Send-CdConnectSummary -Results $results }
+    if ($silent -and (Test-CdInstalled)) { Invoke-CdBackgroundUpdateCheck }
     if ($failed.Count -eq 0) { return 0 }
     if ($failed.Count -lt $results.Count) { return 1 }
     2
@@ -72,6 +76,41 @@ function Invoke-CdCommandLineDisconnect {
     $force = [bool]$Parsed.Flags['force']
     $results = @(Invoke-CdDisconnect -Selection $Parsed.Targets -Force:$force -OnResult { param($Result) Write-CdResult -Result $Result })
     if (@($results | Where-Object { -not $_.Success }).Count -gt 0) { return 1 }
+    0
+}
+
+function Invoke-CdCommandLineInstall {
+    param([pscustomobject]$Parsed)
+    $result = Install-CdApplication -Desktop:([bool]$Parsed.Flags['desktop']) -NoShortcuts:([bool]$Parsed.Flags['no-shortcuts'])
+    Write-CdResult -Result $result
+    0
+}
+
+function Invoke-CdCommandLineUpdate {
+    param([pscustomobject]$Parsed)
+    if ($Parsed.Flags['check']) {
+        $state = Get-CdUpdateState
+        if (-not $state.Latest) { Write-CdInfo -Text (Get-CdText 'error.CD-8004.title') }
+        elseif ($state.Available) { Write-CdInfo -Text (Get-CdText 'update.available' ([string]$state.Latest), ([string]$state.Current)) }
+        else { Write-CdInfo -Text (Get-CdText 'update.upToDate' ([string]$state.Current)) }
+        return 0
+    }
+    $result = Install-CdUpdate
+    Write-CdResult -Result $result
+    if ($result.Success) { return 0 }
+    1
+}
+
+function Invoke-CdCommandLineUninstall {
+    param([pscustomobject]$Parsed)
+    $removeData = [bool]$Parsed.Flags['remove-data']
+    if (-not $Parsed.Flags['yes']) {
+        Write-CdInfo -Text (Get-CdText 'uninstall.explain') -Color Yellow
+        if (-not (Read-CdYesNo -Prompt (Get-CdText 'uninstall.confirm') -Default $false)) { return 0 }
+        if (-not $removeData) { $removeData = Read-CdYesNo -Prompt (Get-CdText 'uninstall.removeData') -Default $false }
+    }
+    Write-CdResult -Result (Uninstall-CdApplication -RemoveData:$removeData)
+    Write-CdInfo -Text (Get-CdText 'uninstall.winfspNote') -Color DarkGray
     0
 }
 
@@ -151,6 +190,9 @@ function Invoke-CdCli {
             'disconnect' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineDisconnect -Parsed $parsed) }
             'status' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineStatus -Parsed $parsed) }
             'autostart' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineAutostart -Parsed $parsed) }
+            'install' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineInstall -Parsed $parsed) }
+            'update' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineUpdate -Parsed $parsed) }
+            'uninstall' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineUninstall -Parsed $parsed) }
             'add-account' { $null = Start-CdAddAccountWizard }
             'remove-account' { $null = Start-CdRemoveAccountWizard }
             'setup' {

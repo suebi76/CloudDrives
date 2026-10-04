@@ -24,15 +24,17 @@ function Get-CdStartupShortcutPath {
 
 function Get-CdAutostartCommand {
     # The command the autostart runs: hidden Windows PowerShell executing "connect --silent".
+    param([string]$SrcRoot)
     $ctx = Get-CdContext
+    if (-not $SrcRoot) { $SrcRoot = $ctx.SrcRoot }
     $powershell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $script = Join-Path $ctx.SrcRoot 'CloudDrives.ps1'
+    $script = Join-Path $SrcRoot 'CloudDrives.ps1'
     $arguments = @('--headless', $powershell, '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $script, 'connect', '--silent', '--autostart')
     if (-not $ctx.IsDefaultHome) { $arguments += "--home=$($ctx.Home)" }
     [pscustomobject]@{
         Execute          = Join-Path $env:WINDIR 'System32\conhost.exe'
         Arguments        = ConvertTo-CdArgumentString -ArgumentList $arguments
-        WorkingDirectory = $ctx.SrcRoot
+        WorkingDirectory = Get-CdNeutralDirectory
     }
 }
 
@@ -48,7 +50,9 @@ function Get-CdAutostart {
 }
 
 function Enable-CdAutostart {
-    $command = Get-CdAutostartCommand
+    # -SrcRoot lets the installer point the autostart at the freshly installed copy.
+    param([string]$SrcRoot)
+    $command = Get-CdAutostartCommand -SrcRoot $SrcRoot
     $user = "$env:USERDOMAIN\$env:USERNAME"
     try {
         $action = New-ScheduledTaskAction -Execute $command.Execute -Argument $command.Arguments -WorkingDirectory $command.WorkingDirectory
