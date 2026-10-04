@@ -233,6 +233,15 @@ function Read-CdSecretText {
     (New-Object System.Management.Automation.PSCredential('clouddrives', $secure)).GetNetworkCredential().Password
 }
 
+function Read-CdSecureText {
+    # Hidden input that stays a SecureString, e.g. a password that goes on to rclone.
+    param([Parameter(Mandatory)][string]$Prompt)
+    Complete-CdProgress
+    Write-Host ''
+    Write-Host ('  ' + $Prompt + ': ') -ForegroundColor White -NoNewline
+    Read-Host -AsSecureString
+}
+
 function Read-CdYesNo {
     param([Parameter(Mandatory)][string]$Prompt, [bool]$Default = $true)
     $yes = Get-CdText 'ui.yesKey'

@@ -3,6 +3,27 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.3.0] – 2026-10-04
+
+### Added
+
+- Nextcloud, IServ and other WebDAV servers as drives ("Konto hinzufügen" [4]–[6])
+  - rclone connects by itself: no Windows WebDAV client, no registry patches, no Office warnings about basic
+    authentication
+  - Nextcloud: sign-in in the browser (Login Flow v2, also with two-factor authentication); Nextcloud creates an app
+    password of its own for CloudDrives, revocable under Settings > Security. Where the operator blocks this sign-in for
+    programs, CloudDrives asks for an app password and explains where to create it. A normal password typed there is
+    exchanged for an app password where Nextcloud allows it. The WebDAV address from the Nextcloud file settings is
+    taken over as it is
+  - IServ: the school's address becomes `webdav.<address>`; user name and IServ password
+  - other servers: the WebDAV address, user name and password
+  - passwords are typed hidden and stored only in the encrypted rclone configuration; only https addresses are
+    accepted (http only on this computer)
+  - signing in again asks only for the new password; removing the account deletes it from this PC (for Nextcloud with
+    the link to revoke the app password)
+  - new codes: CD-3012 (user name or password refused, offers to sign in again), CD-3013 (WebDAV address not found),
+    CD-3014 (Nextcloud sign-in not possible)
+
 ## [0.2.5] – 2026-10-04
 
 ### Changed

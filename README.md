@@ -3,19 +3,21 @@
 [![CI](https://github.com/suebi76/CloudDrives/actions/workflows/ci.yml/badge.svg)](https://github.com/suebi76/CloudDrives/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/suebi76/CloudDrives)](https://github.com/suebi76/CloudDrives/releases/latest)
 
-**OneDrive und Google Drive als Laufwerke in Windows – per Doppelklick.**
-*Mount OneDrive and Google Drive as Windows drive letters with one double-click (English summary below).*
+**OneDrive, Google Drive, Nextcloud und IServ als Laufwerke in Windows – per Doppelklick.**
+*Mount OneDrive, Google Drive, Nextcloud, IServ and other WebDAV servers as Windows drive letters (English summary below).*
 
-CloudDrives bindet deine Cloud-Speicher als echte Laufwerksbuchstaben ein, z. B. `M:` für OneDrive und `K:` für Google Drive.
+CloudDrives bindet deine Cloud-Speicher als echte Laufwerksbuchstaben ein, z. B. `M:` für OneDrive, `K:` für Google
+Drive und `X:` für Nextcloud oder IServ.
 Grundlage sind [rclone](https://rclone.org) und [WinFsp](https://winfsp.dev). Bedient wird es über ein deutsches Konsolen-Menü
 mit geführten Assistenten. Die Installation läuft automatisch, und Anmeldedaten werden verschlüsselt gespeichert.
 
-> **Status:** in Entwicklung (Version 0.2). Getestet sind Kern, Engine, Laufwerksverwaltung, verschlüsselte Tresore,
+> **Status:** in Entwicklung (Version 0.3). Getestet sind Kern, Engine, Laufwerksverwaltung, verschlüsselte Tresore,
 > Autostart, automatisches Wiederverbinden, Diagnose, Symbol im Infobereich sowie Installation und Updates.
 
 ## Funktionen
 
-- **Mehrere Konten:** privates OneDrive (auch Microsoft 365 Family), privates Google-Konto und Google Workspace
+- **Mehrere Konten:** privates OneDrive (auch Microsoft 365 Family), privates Google-Konto, Google Workspace,
+  Nextcloud, IServ (Schulserver) und jeder andere WebDAV-Server
 - **Verschlüsselung nach Wahl:** Pro Konto entscheidest du, ob du ein normales Laufwerk möchtest, zusätzlich einen
   verschlüsselten Tresor oder nur einen Tresor. Mehr dazu in [docs/ENCRYPTION.md](docs/ENCRYPTION.md)
 - **Sichere Anmeldung im Browser:** CloudDrives sieht nie ein Passwort und speichert nur widerrufbare Tokens,
@@ -125,7 +127,9 @@ Für eine Fehlermeldung erstellst du dort ein **Support-Paket**, eine ZIP-Datei 
 
 ## Sicherheit
 
-- **Anmeldung:** ausschließlich auf den Seiten von Microsoft bzw. Google (OAuth). CloudDrives fragt nie nach deinem Passwort.
+- **Anmeldung:** bei Microsoft und Google ausschließlich auf deren Seiten (OAuth). CloudDrives sieht dort nie ein
+  Passwort. Bei Nextcloud bekommt CloudDrives ein eigenes, widerrufbares App-Passwort. IServ und andere WebDAV-Server
+  brauchen Benutzername und Passwort. Die gibst du verdeckt in CloudDrives ein, gespeichert werden sie nur verschlüsselt.
 - **Neu anmelden:** Ist eine Anmeldung abgelaufen oder widerrufen, meldest du das Konto unter **Konten verwalten** neu an.
   Das Konto selbst bleibt dabei bestehen. CloudDrives prüft, dass du dich mit demselben Konto anmeldest. So landen die
   Dateien eines Laufwerks nie versehentlich in einem anderen Konto.
@@ -134,6 +138,27 @@ Für eine Fehlermeldung erstellst du dort ein **Support-Paket**, eine ZIP-Datei 
 - **Repository:** Es enthält nie Zugangsdaten. Mehrere Schutzschichten sorgen dafür: Allowlist-`.gitignore`, Secret-Scans in
   den Tests und GitHub Push Protection.
 - **Grenze:** Schadsoftware, die unter deinem eigenen Windows-Konto läuft, kann keine lokale Lösung zuverlässig abwehren.
+
+## Nextcloud, IServ und andere WebDAV-Server
+
+CloudDrives verbindet sich über rclone direkt per WebDAV. Der WebDAV-Client von Windows wird nicht gebraucht, ebenso
+wenig Registry-Patches. Für Office ist das Laufwerk ein ganz normales Laufwerk, deshalb gibt es auch keine Warnungen zur
+Basic-Anmeldung.
+
+- **Nextcloud:** Du gibst die Adresse ein, unter der du Nextcloud im Browser öffnest. Die WebDAV-Adresse aus den
+  Nextcloud-Dateieinstellungen geht auch. Dann meldest du dich im Browser an, auch mit Zwei-Faktor-Anmeldung, und
+  Nextcloud erstellt ein eigenes App-Passwort für CloudDrives. Dein Passwort bleibt bei Nextcloud.
+  - **Wenn der Betreiber diese Anmeldung für Programme sperrt:** CloudDrives fragt dann nach einem App-Passwort. Du
+    erstellst es in Nextcloud unter *Einstellungen → Sicherheit → Neues App-Passwort erstellen*.
+  - **Widerrufen:** Das App-Passwort lässt sich dort jederzeit widerrufen.
+- **IServ:** Du gibst die Adresse deiner Schule ein, z. B. `meine-schule.de`. CloudDrives verbindet sich mit
+  `webdav.meine-schule.de` und fragt nach IServ-Benutzername und Passwort. Im Laufwerk siehst du „Eigene“ und „Gruppen“.
+- **Andere WebDAV-Server:** Du gibst die vollständige WebDAV-Adresse ein, dazu Benutzername und Passwort.
+
+Passwörter gibst du nur in CloudDrives ein, die Eingabe bleibt unsichtbar. Sie liegen ausschließlich in der verschlüsselten
+rclone-Konfiguration, nie in Einstellungen, Protokollen oder im Repository. Erlaubt sind nur `https`-Adressen. Lehnt der
+Server die Anmeldung ab, etwa nach einer Passwortänderung, meldest du das Konto unter **Konten verwalten** neu an. Dabei
+fragt CloudDrives nur das neue Passwort ab.
 
 ## Google: eigene Client-ID (erforderlich)
 
@@ -165,7 +190,8 @@ Abhängigkeiten zeigen nur nach unten.
 
 ## English summary
 
-CloudDrives mounts OneDrive and Google Drive (personal and Workspace) as Windows drive letters using rclone and WinFsp.
+CloudDrives mounts OneDrive, Google Drive (personal and Workspace), Nextcloud, IServ and other WebDAV servers as Windows
+drive letters using rclone and WinFsp.
 Install it without administrator rights from PowerShell:
 
 ```powershell
