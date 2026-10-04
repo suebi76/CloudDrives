@@ -240,4 +240,173 @@ namespace CloudDrives.Native
             return block.ToString();
         }
     }
+
+    // Status line of a long operation in the console window: the current step, a turning bar and the time the step
+    // has taken so far. A timer redraws it four times a second, so it keeps moving while PowerShell waits for a
+    // blocking call. It writes only into a real console window, never into redirected output. Everything else that
+    // writes to the console removes it first (Clear).
+    public static class StatusLine
+    {
+        private const int STD_OUTPUT_HANDLE = -11;
+        private static readonly object Gate = new object();
+        private static readonly string[] Bars = new string[] { "|", "/", "-", "\\" };
+        private static System.Threading.Timer timer;
+        private static System.Diagnostics.Stopwatch watch;
+        private static string text;
+        private static int frame;
+        private static int length;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr GetStdHandle(int nStdHandle);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern bool GetConsoleMode(IntPtr hConsoleHandle, out int lpMode);
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        private static extern bool WriteConsoleW(IntPtr hConsoleOutput, string lpBuffer, int nNumberOfCharsToWrite, out int lpNumberOfCharsWritten, IntPtr lpReserved);
+
+        public static bool Visible
+        {
+            get { lock (Gate) { return text != null; } }
+        }
+
+        public static void Show(string value)
+        {
+            lock (Gate)
+            {
+                text = value ?? string.Empty;
+                watch = System.Diagnostics.Stopwatch.StartNew();
+                frame = 0;
+                Draw();
+                if (timer == null)
+                {
+                    timer = new System.Threading.Timer(Tick, null, 250, 250);
+                }
+            }
+        }
+
+        public static void Clear()
+        {
+            lock (Gate)
+            {
+                if (timer != null)
+                {
+                    timer.Dispose();
+                    timer = null;
+                }
+                if (text != null && length > 0)
+                {
+                    Write("\r" + new string(' ', length) + "\r", false);
+                }
+                text = null;
+                length = 0;
+            }
+        }
+
+        // "12 s" below a minute, "1:05 min" from a minute on.
+        public static string FormatElapsed(TimeSpan elapsed)
+        {
+            int seconds = (int)Math.Floor(elapsed.TotalSeconds);
+            if (seconds < 60)
+            {
+                return seconds.ToString(System.Globalization.CultureInfo.InvariantCulture) + " s";
+            }
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture, "{0}:{1:00} min", seconds / 60, seconds % 60);
+        }
+
+        // One frame: indentation, bar, text and - from the first second on - the time, cut to the window width.
+        public static string Render(string value, int frameNumber, TimeSpan elapsed, int width)
+        {
+            string line = "  " + Bars[Math.Abs(frameNumber % Bars.Length)] + " " + value;
+            if (elapsed.TotalSeconds >= 1)
+            {
+                line += " " + FormatElapsed(elapsed);
+            }
+            if (width > 1 && line.Length >= width)
+            {
+                line = line.Substring(0, width - 1);
+            }
+            return line;
+        }
+
+        private static void Tick(object state)
+        {
+            try
+            {
+                lock (Gate)
+                {
+                    if (text != null)
+                    {
+                        Draw();
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // A timer thread must never end the process.
+            }
+        }
+
+        // Callers hold Gate.
+        private static void Draw()
+        {
+            int width = 80;
+            try
+            {
+                width = Console.WindowWidth;
+            }
+            catch (Exception)
+            {
+                width = 80;
+            }
+            string line = Render(text, frame, watch.Elapsed, width);
+            frame++;
+            string padding = new string(' ', Math.Max(0, length - line.Length));
+            if (Write("\r" + line + padding, true))
+            {
+                length = line.Length;
+            }
+        }
+
+        private static bool Write(string value, bool colored)
+        {
+            IntPtr handle = GetStdHandle(STD_OUTPUT_HANDLE);
+            int mode;
+            if (handle == IntPtr.Zero || handle == new IntPtr(-1) || !GetConsoleMode(handle, out mode))
+            {
+                return false;
+            }
+            ConsoleColor previous = ConsoleColor.Gray;
+            bool recolored = false;
+            try
+            {
+                if (colored)
+                {
+                    previous = Console.ForegroundColor;
+                    Console.ForegroundColor = ConsoleColor.Cyan;
+                    recolored = true;
+                }
+                int written;
+                return WriteConsoleW(handle, value, value.Length, out written, IntPtr.Zero);
+            }
+            catch (Exception)
+            {
+                return false;
+            }
+            finally
+            {
+                if (recolored)
+                {
+                    try
+                    {
+                        Console.ForegroundColor = previous;
+                    }
+                    catch (Exception)
+                    {
+                        // The color stays; the next output sets its own.
+                    }
+                }
+            }
+        }
+    }
 }

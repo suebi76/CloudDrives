@@ -117,8 +117,11 @@ Describe 'Install, update and uninstall' {
             $state = Get-CdUpdateState
             $state.Available | Should -BeTrue
             $state.Latest | Should -Be ([version]'9.9.1')
-            (Install-CdUpdate).Success | Should -BeTrue
+            $script:TestProgress = New-Object System.Collections.Generic.List[string]
+            (Install-CdUpdate -OnProgress { param([string]$Status) $script:TestProgress.Add($Status) }).Success | Should -BeTrue
             Get-CdManifestVersion -Path (Join-Path (Get-CdInstallDir) 'src\CloudDrives.psd1') | Should -Be ([version]'9.9.1')
+            $script:TestProgress.ToArray() | Should -Be @(
+                (Get-CdText 'update.checking'), (Get-CdText 'progress.download' '9.9.1'), (Get-CdText 'progress.verify'), (Get-CdText 'progress.install' '9.9.1'))
         }
     }
 
@@ -129,8 +132,11 @@ Describe 'Install, update and uninstall' {
         [IO.File]::WriteAllBytes($zip, $bytes + [byte[]](1, 2, 3))
         $env:CLOUDDRIVES_RELEASE_SOURCE = $tampered
         InModuleScope CloudDrives {
-            try { [void](Install-CdUpdate); throw 'expected an error' }
+            $script:TestProgress = New-Object System.Collections.Generic.List[string]
+            try { [void](Install-CdUpdate -OnProgress { param([string]$Status) $script:TestProgress.Add($Status) }); throw 'expected an error' }
             catch { Get-CdErrorCode $_ | Should -Be 'CD-1006' }
+            # The tampered package fails the check: nothing gets installed.
+            $script:TestProgress.ToArray() | Should -Not -Contain (Get-CdText 'progress.install' '9.9.2')
             Get-CdManifestVersion -Path (Join-Path (Get-CdInstallDir) 'src\CloudDrives.psd1') | Should -Be ([version]'9.9.1')
         }
     }

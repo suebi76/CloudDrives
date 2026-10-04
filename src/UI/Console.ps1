@@ -19,11 +19,13 @@ function Test-CdSingleKeyInput {
 }
 
 function Write-CdRule {
+    Complete-CdProgress
     Write-Host ('  ' + [string]::new($script:CdRuleChar, 66)) -ForegroundColor DarkGray
 }
 
 function Write-CdHeader {
     param([string]$Subtitle)
+    Complete-CdProgress
     Write-Host ''
     Write-Host ('  CloudDrives ' + (Get-CdContext).Version) -ForegroundColor Cyan -NoNewline
     if ($Subtitle) { Write-Host ('   ' + $Subtitle) -ForegroundColor Gray }
@@ -33,23 +35,27 @@ function Write-CdHeader {
 
 function Write-CdInfo {
     param([string]$Text, [ConsoleColor]$Color = [ConsoleColor]::Gray)
+    Complete-CdProgress
     foreach ($line in ($Text -split "`n")) { Write-Host ('  ' + $line.TrimEnd("`r")) -ForegroundColor $Color }
 }
 
 function Write-CdStep {
     param([string]$Text)
+    Complete-CdProgress
     Write-Host ''
     Write-Host ('  ' + $Text) -ForegroundColor White
 }
 
 function Write-CdOk {
     param([string]$Text)
+    Complete-CdProgress
     Write-Host ('  ' + $script:CdCheck + ' ') -ForegroundColor Green -NoNewline
     Write-Host $Text
 }
 
 function Write-CdFail {
     param([string]$Text)
+    Complete-CdProgress
     Write-Host ('  ' + $script:CdCross + ' ') -ForegroundColor Red -NoNewline
     Write-Host $Text
 }
@@ -67,18 +73,32 @@ function Format-CdElapsed {
     '{0}:{1:00} min' -f [int][Math]::Floor($seconds / 60), ($seconds % 60)
 }
 
+function Test-CdStatusLineNative {
+    # The status line that redraws itself comes with the native helpers (not with an older copy of them that this
+    # process may have loaded before an update).
+    if (-not (Initialize-CdNative)) { return $false }
+    [bool]('CloudDrives.Native.StatusLine' -as [type])
+}
+
 function Write-CdProgress {
     # Status line of a long operation: the current step, a turning bar and how long the step has taken so far, so
-    # it is visible that CloudDrives is still working. A text starts a new step; a call without text redraws the
-    # line. Without a console window that can redraw a line, each step is written as a line of its own.
+    # it is visible that CloudDrives is still working. A text starts a new step. The native line redraws itself, also
+    # while CloudDrives waits for a blocking call; without it, a call without text redraws the line. Without a
+    # console window that can redraw a line, each step is written as a line of its own. Any other output and every
+    # question remove the line first (Complete-CdProgress).
     param([AllowNull()][AllowEmptyString()][string]$Text)
     $live = Test-CdLiveConsole
     if ($Text) {
-        $script:CdProgress = @{ Text = $Text; Watch = [Diagnostics.Stopwatch]::StartNew(); Frame = 0 }
         if (-not $live) { Write-CdInfo -Text $Text -Color DarkGray; return }
+        if (Test-CdStatusLineNative) {
+            [CloudDrives.Native.StatusLine]::Show($Text)
+            $script:CdProgress = @{ Native = $true }
+            return
+        }
+        $script:CdProgress = @{ Native = $false; Text = $Text; Watch = [Diagnostics.Stopwatch]::StartNew(); Frame = 0 }
     }
-    if (-not $script:CdProgress -or -not $live) { return }
     $progress = $script:CdProgress
+    if (-not $progress -or $progress.Native -or -not $live) { return }
     $bar = @('|', '/', '-', '\')[$progress.Frame % 4]
     $progress.Frame++
     # The time appears from the first second on; a short step shows none instead of a "0 s" that never changes.
@@ -94,10 +114,11 @@ function Write-CdProgress {
 
 function Complete-CdProgress {
     # Removes the status line, so whatever follows is written where it stood.
-    if ($script:CdProgress -and $script:CdLiveLength -gt 0 -and (Test-CdLiveConsole)) {
-        Write-Host ("`r" + (' ' * $script:CdLiveLength) + "`r") -NoNewline
-    }
+    $progress = $script:CdProgress
+    if (-not $progress) { return }
     $script:CdProgress = $null
+    if ($progress.Native) { [CloudDrives.Native.StatusLine]::Clear() }
+    elseif ($script:CdLiveLength -gt 0 -and (Test-CdLiveConsole)) { Write-Host ("`r" + (' ' * $script:CdLiveLength) + "`r") -NoNewline }
     $script:CdLiveLength = 0
 }
 
@@ -110,6 +131,7 @@ function Format-CdShort {
 
 function Write-CdErrorInfo {
     param([Parameter(Mandatory)][object]$Info)
+    Complete-CdProgress
     Write-Host ''
     Write-Host ('  ' + $Info.Code + '  ' + $Info.Title) -ForegroundColor Red
     if ($Info.Fix -and -not $Info.Fix.StartsWith('[')) { Write-CdInfo -Text $Info.Fix -Color Yellow }
@@ -131,6 +153,7 @@ function Write-CdResult {
 
 function Write-CdStatusTable {
     param([object[]]$StatusList)
+    Complete-CdProgress
     if (-not $StatusList -or $StatusList.Count -eq 0) {
         Write-CdInfo -Text (Get-CdText 'status.noDrives')
         return
@@ -167,6 +190,7 @@ function Read-CdChoice {
         [Parameter(Mandatory)][string[]]$Valid,
         [string]$Default
     )
+    Complete-CdProgress
     while ($true) {
         Write-Host ''
         Write-Host ('  ' + $Prompt + ' ') -ForegroundColor White -NoNewline
@@ -190,6 +214,7 @@ function Read-CdChoice {
 
 function Read-CdText {
     param([Parameter(Mandatory)][string]$Prompt, [string]$Default)
+    Complete-CdProgress
     Write-Host ''
     Write-Host ('  ' + $Prompt) -ForegroundColor White -NoNewline
     if ($Default) { Write-Host (' [' + $Default + ']') -ForegroundColor DarkGray -NoNewline }
@@ -201,6 +226,7 @@ function Read-CdText {
 
 function Read-CdSecretText {
     param([Parameter(Mandatory)][string]$Prompt)
+    Complete-CdProgress
     Write-Host ''
     Write-Host ('  ' + $Prompt + ': ') -ForegroundColor White -NoNewline
     $secure = Read-Host -AsSecureString
@@ -219,6 +245,7 @@ function Read-CdYesNo {
 }
 
 function Wait-CdKeyPress {
+    Complete-CdProgress
     Write-Host ''
     Write-Host ('  ' + (Get-CdText 'ui.pressAnyKey')) -ForegroundColor DarkGray -NoNewline
     if (Test-CdSingleKeyInput) { [void][Console]::ReadKey($true) } else { [void](Read-Host) }
@@ -237,5 +264,6 @@ function Test-CdEscapePressed {
 }
 
 function Clear-CdScreen {
+    Complete-CdProgress
     try { Clear-Host } catch { Write-Host '' }
 }

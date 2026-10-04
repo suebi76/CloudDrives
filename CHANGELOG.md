@@ -3,6 +3,20 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.2.5] – 2026-10-04
+
+### Changed
+
+- The status line also accompanies the other longer actions:
+  - "Alle verbinden" and connecting new drives: starting the engine, each drive ("Verbinde OneDrive (M:) …"),
+    and waiting for the internet connection when there is none yet
+  - disconnecting: each drive, and waiting for pending uploads
+  - the update: looking for updates, downloading, checking the package, installing
+  - the diagnosis: the area being checked, each automatic fix, creating the support bundle
+- The status line redraws itself four times a second (a small native helper), so the bar turns and the time runs
+  also while CloudDrives waits for a slow answer, for example while a drive is being connected. Any other output
+  and every question remove it first, so it never writes into an input.
+
 ## [0.2.4] – 2026-10-04
 
 ### Changed

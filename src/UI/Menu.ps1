@@ -3,7 +3,9 @@
 function Invoke-CdConnectUi {
     param([string[]]$Selection = @('all'))
     Write-CdStep -Text (Get-CdText 'connect.running')
-    $results = @(Invoke-CdConnect -Selection $Selection -AllowInstall -OnResult { param($Result) Write-CdResult -Result $Result })
+    $results = @(Invoke-CdConnect -Selection $Selection -AllowInstall -OnResult { param($Result) Write-CdResult -Result $Result } `
+            -OnProgress { param([string]$Status) Write-CdProgress -Text $Status })
+    Complete-CdProgress
     if ($results.Count -eq 0) { Write-CdInfo -Text (Get-CdText 'status.noDrives') }
 
     # An expired or revoked sign-in can be renewed right here; afterwards the affected drives are retried.
@@ -20,14 +22,18 @@ function Invoke-CdConnectUi {
         $renewed = @(Start-CdReloginWizard -Account $account -Embedded) | Where-Object { $_ -is [bool] } | Select-Object -Last 1
         if (-not $renewed) { continue }
         $retry = @($results | Where-Object { -not $_.Success -and $_.Data -and $_.Data.account -eq $accountId } | ForEach-Object { [string]$_.Data.id })
-        if ($retry.Count -gt 0) { [void](Invoke-CdConnect -Selection $retry -OnResult { param($Result) Write-CdResult -Result $Result }) }
+        if ($retry.Count -gt 0) {
+            [void](Invoke-CdConnect -Selection $retry -OnResult { param($Result) Write-CdResult -Result $Result } -OnProgress { param([string]$Status) Write-CdProgress -Text $Status })
+            Complete-CdProgress
+        }
     }
     Wait-CdKeyPress
 }
 
 function Invoke-CdDisconnectUi {
     Write-CdStep -Text (Get-CdText 'disconnect.running')
-    $results = @(Invoke-CdDisconnect -OnResult { param($Result) Write-CdResult -Result $Result })
+    $results = @(Invoke-CdDisconnect -OnResult { param($Result) Write-CdResult -Result $Result } -OnProgress { param([string]$Status) Write-CdProgress -Text $Status })
+    Complete-CdProgress
     $blocked = @($results | Where-Object { $_.Code -eq 'CD-4006' })
     foreach ($item in $blocked) {
         $drive = $item.Data.Drive
@@ -40,13 +46,14 @@ function Invoke-CdDisconnectUi {
         if ($choice -eq '1') {
             $mounted = Get-CdMountedDrives
             $fs = [string]$mounted["$($drive.letter):".ToUpperInvariant()].Fs
-            Write-CdInfo -Text (Get-CdText 'disconnect.waiting') -Color DarkGray
+            Write-CdProgress -Text (Get-CdText 'disconnect.waiting')
             while ((Get-CdPendingUploadCount -Fs $fs) -gt 0) {
                 if (Test-CdEscapePressed) { break }
                 Start-Sleep -Seconds 2
+                Write-CdProgress
             }
         }
-        $result = Invoke-CdDisconnect -Selection @($drive.id) -Force:($choice -eq '2')
+        $result = Invoke-CdDisconnect -Selection @($drive.id) -Force:($choice -eq '2') -OnProgress { param([string]$Status) Write-CdProgress -Text $Status }
         foreach ($entry in @($result)) { Write-CdResult -Result $entry }
     }
     Wait-CdKeyPress

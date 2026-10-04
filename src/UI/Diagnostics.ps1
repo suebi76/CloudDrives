@@ -43,9 +43,10 @@ function Show-CdDoctorReport {
 }
 
 function Invoke-CdDoctorChecksUi {
-    # Runs the diagnosis with a progress line per area.
+    # Runs the diagnosis; the status line names the area being checked.
     Write-CdInfo -Text (Get-CdText 'doctor.running') -Color DarkGray
-    @(Invoke-CdDoctor -OnArea { param($Area) Write-Host ('    ' + (Get-CdText "doctor.area.$Area") + ' ...') -ForegroundColor DarkGray })
+    try { @(Invoke-CdDoctor -OnArea { param($Area) Write-CdProgress -Text (Get-CdText 'progress.doctor' (Get-CdText "doctor.area.$Area")) }) }
+    finally { Complete-CdProgress }
 }
 
 function Invoke-CdDoctorFixesUi {
@@ -63,8 +64,10 @@ function Invoke-CdDoctorFixesUi {
             if ($account) { [void](Start-CdReloginWizard -Account $account -ChangeClient:($check.Fix -eq 'change-client') -Embedded) }
             continue
         }
+        Write-CdProgress -Text (Get-CdText 'progress.fixing')
         try { foreach ($result in @(Invoke-CdDoctorFix -Check $check)) { if ($result) { Write-CdResult -Result $result } } }
         catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
+        Complete-CdProgress
     }
 }
 
@@ -73,7 +76,7 @@ function Start-CdSupportBundleUi {
     Write-CdStep -Text (Get-CdText 'support.title')
     Write-CdInfo -Text (Get-CdText 'support.explain') -Color DarkGray
     if (-not (Read-CdYesNo -Prompt (Get-CdText 'support.confirm') -Default $true)) { return }
-    Write-CdInfo -Text (Get-CdText 'support.creating') -Color DarkGray
+    Write-CdProgress -Text (Get-CdText 'support.creating')
     try {
         $result = New-CdSupportBundle -Checks $Checks
         Write-CdResult -Result $result
