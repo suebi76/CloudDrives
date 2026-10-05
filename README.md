@@ -67,10 +67,17 @@ Rechtsklick → „Mit PowerShell ausführen“.
 2. **`CloudDrives.bat`** doppelklicken.
 3. CloudDrives bietet beim ersten Start an, sich zu installieren. Danach kannst du den entpackten Ordner löschen.
 
-**Updates:** Im Menü unter Einstellungen → „Nach Updates suchen“ oder per `CloudDrives.bat aktualisieren`.
+**Updates:** Wie neue Versionen ankommen, stellst du im Menü unter Einstellungen → „Neue Versionen“ ein:
 
-- Nach dem Autostart prüft CloudDrives einmal täglich, ob es eine neue Version gibt, und meldet sich dann.
-- Installiert wird ein Update nur, wenn du zustimmst.
+- **Hinweis zeigen, Installation mit einem Klick** (Standard): CloudDrives sieht alle sechs Stunden nach und sagt
+  einmal Bescheid. Rechtsklick auf das CloudDrives-Symbol im Infobereich → „CloudDrives … installieren“ genügt;
+  im Menü geht es mit [U].
+- **Automatisch installieren:** Neue Versionen werden im Hintergrund installiert, sobald kein CloudDrives-Fenster
+  offen ist. Verbundene Laufwerke bleiben dabei verbunden.
+- **Nur wenn ich nachsehe:** CloudDrives sucht nicht selbst. „Nach Updates suchen“ oder `CloudDrives.bat aktualisieren`
+  prüft es, wann du willst.
+- **Testversionen erhalten:** Vorabversionen zum Ausprobieren. Sie kommen vor allen anderen, können aber noch Fehler
+  haben.
 - Jedes Update wird per SHA256 geprüft. Klappt der Austausch nicht, bleibt die bisherige Version erhalten.
 
 **Deinstallieren:** Im Menü unter Einstellungen → „CloudDrives deinstallieren“ oder per `CloudDrives.bat deinstallieren`.
@@ -186,7 +193,8 @@ Abhängigkeiten zeigen nur nach unten.
 - **Sicherheitsmodell und Melden von Lücken:** [SECURITY.md](SECURITY.md)
 - **Automatische Prüfungen:** Jeder Push und jeder Pull Request durchläuft auf GitHub Lint, Unit-Tests unter
   PowerShell 5.1 und 7 und einen Geheimnis-Scan.
-- **Releases:** Ein Versions-Tag erzeugt automatisch ZIP, `install.ps1` und Prüfsummen.
+- **Releases:** Ein Versions-Tag erzeugt automatisch ZIP, `install.ps1` und Prüfsummen; ein Tag wie `v0.3.4-preview.1`
+  eine Testversion (siehe [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 ## English summary
 
@@ -201,7 +209,9 @@ irm https://github.com/suebi76/CloudDrives/releases/latest/download/install.ps1 
 The installer verifies the SHA256 checksum, installs to `%LOCALAPPDATA%\Programs\CloudDrives` and starts the guided
 setup. Alternatively, download the ZIP from the latest release and double-click `CloudDrives.bat`. You sign in through
 the provider's own page (OAuth). Tokens are stored encrypted with a key kept in the Windows Credential Manager. Updates
-are checksum-verified and only installed with your consent. The UI language follows Windows (German/English).
+are checksum-verified; you choose whether CloudDrives shows a notice (one click installs the new version), installs it
+automatically or only looks when you ask, and whether you receive test versions. The UI language follows Windows
+(German/English).
 
 ## Lizenz
 

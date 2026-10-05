@@ -13,8 +13,8 @@ BeforeAll {
     $script:Version = [string](InModuleScope CloudDrives { (Get-CdContext).Version })
 
     function New-TestRelease {
-        # Builds a release from a copy of the repository with another version number.
-        param([string]$Version, [string]$Name)
+        # Builds a release from a copy of the repository with another version number (and the label of a test version).
+        param([string]$Version, [string]$Name, [string]$Prerelease)
         $root = Join-Path $script:Sandbox "source-$Name"
         foreach ($item in @('CloudDrives.bat', 'install.ps1', 'src', 'docs', 'LICENSE', 'README.md', 'PRIVACY.md', 'CHANGELOG.md')) {
             $path = Join-Path $script:RepoRoot $item
@@ -22,6 +22,8 @@ BeforeAll {
         }
         $manifest = Join-Path $root 'src\CloudDrives.psd1'
         $text = [IO.File]::ReadAllText($manifest) -replace "ModuleVersion\s*=\s*'[^']+'", "ModuleVersion        = '$Version'"
+        $text = $text -replace "\s*Prerelease\s*=\s*'[^']*'", ''
+        if ($Prerelease) { $text = $text -replace '(PSData\s*=\s*@\{)', "`$1`r`n            Prerelease = '$Prerelease'" }
         [IO.File]::WriteAllText($manifest, $text, (New-Object Text.UTF8Encoding($true)))
         $out = Join-Path $script:Sandbox "release-$Name"
         & (Join-Path $script:RepoRoot 'tools\Build-Release.ps1') -OutDir $out -SourceRoot $root -LocalSource | Out-Null
@@ -117,10 +119,10 @@ Describe 'Install, update and uninstall' {
         InModuleScope CloudDrives {
             $state = Get-CdUpdateState
             $state.Available | Should -BeTrue
-            $state.Latest | Should -Be ([version]'9.9.1')
+            $state.Latest | Should -Be '9.9.1'
             $script:TestProgress = New-Object System.Collections.Generic.List[string]
             (Install-CdUpdate -OnProgress { param([string]$Status) $script:TestProgress.Add($Status) }).Success | Should -BeTrue
-            Get-CdManifestVersion -Path (Join-Path (Get-CdInstallDir) 'src\CloudDrives.psd1') | Should -Be ([version]'9.9.1')
+            Get-CdManifestVersion -Path (Join-Path (Get-CdInstallDir) 'src\CloudDrives.psd1') | Should -Be '9.9.1'
             $script:TestProgress.ToArray() | Should -Be @(
                 (Get-CdText 'update.checking'), (Get-CdText 'progress.download' '9.9.1'), (Get-CdText 'progress.verify'), (Get-CdText 'progress.install' '9.9.1'))
         }
@@ -138,7 +140,39 @@ Describe 'Install, update and uninstall' {
             catch { Get-CdErrorCode $_ | Should -Be 'CD-1006' }
             # The tampered package fails the check: nothing gets installed.
             $script:TestProgress.ToArray() | Should -Not -Contain (Get-CdText 'progress.install' '9.9.2')
-            Get-CdManifestVersion -Path (Join-Path (Get-CdInstallDir) 'src\CloudDrives.psd1') | Should -Be ([version]'9.9.1')
+            Get-CdManifestVersion -Path (Join-Path (Get-CdInstallDir) 'src\CloudDrives.psd1') | Should -Be '9.9.1'
+        }
+    }
+
+    It 'offers a test version only to installations that receive test versions' {
+        # One source listing a regular release and a newer test version, as GitHub does.
+        $regular = New-TestRelease -Version '9.9.2' -Name 'regular'
+        $test = New-TestRelease -Version '9.9.3' -Prerelease 'preview.1' -Name 'test'
+        $both = New-Item -ItemType Directory -Path (Join-Path $script:Sandbox 'release-both') -Force
+        $list = foreach ($folder in @($test, $regular)) {
+            $release = [IO.File]::ReadAllText((Join-Path $folder 'release.json')) | ConvertFrom-Json
+            $release.prerelease | Should -Be ($folder -eq $test)
+            $release
+        }
+        [IO.File]::WriteAllText((Join-Path $both 'release.json'), (ConvertTo-Json -InputObject @($list) -Depth 5))
+        $env:CLOUDDRIVES_RELEASE_SOURCE = $both.FullName
+        InModuleScope CloudDrives {
+            $settings = Get-CdSettings
+            $settings.testVersions = $false
+            Save-CdSettings -Settings $settings
+            (Get-CdUpdateState).Latest | Should -Be '9.9.2'
+            $settings.testVersions = $true
+            Save-CdSettings -Settings $settings
+            try {
+                (Get-CdUpdateState).Latest | Should -Be '9.9.3-preview.1'
+                (Install-CdUpdate).Success | Should -BeTrue
+                Get-CdManifestVersion -Path (Join-Path (Get-CdInstallDir) 'src\CloudDrives.psd1') | Should -Be '9.9.3-preview.1'
+                Test-Path -LiteralPath (Join-Path (Get-CdInstallDir) 'CloudDrives.bat') | Should -BeTrue
+            }
+            finally {
+                $settings.testVersions = $false
+                Save-CdSettings -Settings $settings
+            }
         }
     }
 

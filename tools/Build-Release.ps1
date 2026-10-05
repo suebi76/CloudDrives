@@ -3,19 +3,25 @@
     Builds the release assets: CloudDrives-<version>.zip, install.ps1 and SHA256SUMS.txt.
 .DESCRIPTION
     The ZIP contains only what users need (see src\Resources\app.json, "packageItems"), never tests or tools.
+    A test version carries a label (PrivateData.PSData.Prerelease in the manifest), so its version reads
+    0.3.3-preview.1 and its package CloudDrives-0.3.3-preview.1.zip.
     -LocalSource additionally writes a release.json so the folder can serve as CLOUDDRIVES_RELEASE_SOURCE
     for offline installations and tests.
+    -ExpectedVersion (the version a release tag names) stops the build when the manifest says otherwise.
 #>
 param(
     [string]$OutDir = (Join-Path (Split-Path -Parent $PSScriptRoot) 'out'),
     [string]$SourceRoot = (Split-Path -Parent $PSScriptRoot),
-    [switch]$LocalSource
+    [switch]$LocalSource,
+    [string]$ExpectedVersion
 )
 
 $ErrorActionPreference = 'Stop'
-$manifestText = [IO.File]::ReadAllText((Join-Path $SourceRoot 'src\CloudDrives.psd1'))
-if ($manifestText -notmatch "ModuleVersion\s*=\s*'([0-9][0-9.]*)'") { throw 'ModuleVersion not found in the manifest.' }
-$version = $Matches[1]
+$manifest = Import-PowerShellDataFile -Path (Join-Path $SourceRoot 'src\CloudDrives.psd1')
+$version = [string]$manifest.ModuleVersion
+$label = [string]$manifest.PrivateData.PSData.Prerelease
+if ($label) { $version += "-$label" }
+if ($ExpectedVersion -and $ExpectedVersion -ne $version) { throw "Version $ExpectedVersion does not match the module version $version." }
 $app = [IO.File]::ReadAllText((Join-Path $SourceRoot 'src\Resources\app.json'), [Text.Encoding]::UTF8) | ConvertFrom-Json
 $packageName = $app.packageName.Replace('{version}', $version)
 
@@ -47,8 +53,9 @@ $sums = Join-Path $OutDir $app.checksumFile
 
 if ($LocalSource) {
     $release = [ordered]@{
-        tag_name = "v$version"
-        assets   = @(
+        tag_name   = "v$version"
+        prerelease = [bool]$label
+        assets     = @(
             [ordered]@{ name = $packageName; browser_download_url = $zip },
             [ordered]@{ name = $app.checksumFile; browser_download_url = $sums },
             [ordered]@{ name = 'install.ps1'; browser_download_url = $installer }

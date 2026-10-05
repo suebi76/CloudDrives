@@ -116,6 +116,14 @@ function Start-CdConsoleMenu {
         catch { Write-CdErrorInfo -Info (Get-CdErrorInfo $_) }
         Write-CdRule
         Write-CdInfo -Text $engineText -Color DarkGray
+        $valid = @('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')
+        $update = Get-CdPendingUpdate
+        if ($update) {
+            $key = 'menu.updateAvailable'
+            if ((Get-CdSettings).updates -eq 'automatic') { $key = 'menu.updateWaiting' }
+            Write-CdInfo -Text (Get-CdText $key $update) -Color Green
+            $valid += 'U'
+        }
         Write-Host ''
         $menu = @(
             @('1', 'menu.connectAll', '2', 'menu.disconnectAll'),
@@ -128,9 +136,15 @@ function Start-CdConsoleMenu {
             $left = ('[{0}] {1}' -f $row[0], (Get-CdText $row[1])).PadRight(28)
             Write-CdInfo -Text ($left + ('[{0}] {1}' -f $row[2], (Get-CdText $row[3]))) -Color White
         }
-        $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')
+        $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid $valid
         try {
             switch ($choice) {
+                'U' {
+                    if (@(Start-CdUpdateUi -Confirmed) | Where-Object { $_ -is [bool] } | Select-Object -Last 1) {
+                        Restart-CdFromInstallDir
+                        return 0
+                    }
+                }
                 '1' { Invoke-CdConnectUi }
                 '2' { Invoke-CdDisconnectUi }
                 '3' { Start-CdAddAccountWizard }

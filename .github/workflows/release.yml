@@ -1,6 +1,7 @@
-# Publishes a release when a version tag (v1.2.3) is pushed: runs the quality gate, checks that the tag matches
-# the module version, builds CloudDrives-<version>.zip, install.ps1 and SHA256SUMS.txt (tools\Build-Release.ps1)
-# and creates the GitHub release with the matching CHANGELOG section as release notes.
+# Publishes a release when a version tag (v1.2.3, or v1.2.3-preview.1 for a test version) is pushed: runs the quality
+# gate, checks that the tag matches the module version, builds CloudDrives-<version>.zip, install.ps1 and
+# SHA256SUMS.txt (tools\Build-Release.ps1) and creates the GitHub release with the matching CHANGELOG section as
+# release notes. A test version becomes a pre-release: only installations that receive test versions get it.
 name: Release
 
 on:
@@ -22,12 +23,13 @@ jobs:
         shell: pwsh
         run: |
           $version = '${{ github.ref_name }}'.TrimStart('v')
-          $manifest = Get-Content -Raw -Path src/CloudDrives.psd1
-          if ($manifest -notmatch "ModuleVersion\s*=\s*'$([regex]::Escape($version))'") { throw "Tag ${{ github.ref_name }} does not match the module version." }
-          ./tools/Build-Release.ps1 -OutDir out
+          ./tools/Build-Release.ps1 -OutDir out -ExpectedVersion $version
           ./tools/Get-ReleaseNotes.ps1 -Version $version | Set-Content -Path release-notes.md -Encoding utf8
       - name: Publish release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create '${{ github.ref_name }}' (Get-ChildItem out -File).FullName --title 'CloudDrives ${{ github.ref_name }}' --notes-file release-notes.md
+        run: |
+          $flags = @()
+          if ('${{ github.ref_name }}'.Contains('-')) { $flags += '--prerelease' }
+          gh release create '${{ github.ref_name }}' (Get-ChildItem out -File).FullName --title 'CloudDrives ${{ github.ref_name }}' --notes-file release-notes.md @flags

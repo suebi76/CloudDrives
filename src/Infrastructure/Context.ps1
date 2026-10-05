@@ -28,8 +28,12 @@ function Initialize-CdContext {
     $version = '0.0.0'
     $copyright = ''
     if ($ExecutionContext.SessionState.Module) {
-        $version = [string]$ExecutionContext.SessionState.Module.Version
-        $copyright = [string]$ExecutionContext.SessionState.Module.Copyright
+        $module = $ExecutionContext.SessionState.Module
+        $version = [string]$module.Version
+        # A test version carries a label (0.3.3-preview.1), kept in the manifest as PSData.Prerelease.
+        $label = $module.PrivateData.PSData.Prerelease
+        if ($label) { $version += "-$label" }
+        $copyright = [string]$module.Copyright
     }
 
     $script:CdContext = [pscustomobject]@{

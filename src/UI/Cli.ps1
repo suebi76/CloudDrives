@@ -2,8 +2,8 @@
 #   connect|verbinden [all|<drive>...] [--silent]    disconnect|trennen [all|<drive>...] [--force]
 #   status [--json]   add-account   remove-account   relogin|neu-anmelden [<account>]
 #   change-client|client-id [<account>]   doctor|diagnose [--fix] [--bundle [--out=<zip>]] [--json]
-#   watchdog [on|off|status]   tray [on|off|status]   autostart   install   update   uninstall   setup   version   help
-#   about|info
+#   watchdog [on|off|status]   tray [on|off|status]   autostart   install   uninstall   setup   version   help
+#   update [--check] [--background] [--silent]   about|info
 # "--window" (set when CloudDrives opens a window of its own): the window shows the CloudDrives symbol in the taskbar.
 
 $script:CdCommandAliases = @{
@@ -73,7 +73,7 @@ function Invoke-CdCommandLineConnect {
     $failed = @($results | Where-Object { -not $_.Success })
     foreach ($item in $failed) { Write-CdLog -Level WARN -Component 'Cli' -Message "connect: $($item.Code) $($item.Message)" }
     if ($silent) { Send-CdConnectSummary -Results $results }
-    if ($silent -and (Test-CdInstalled)) { Invoke-CdBackgroundUpdateCheck }
+    if ($silent) { [void](Invoke-CdBackgroundUpdateCheck) }
     if ($failed.Count -eq 0) { return 0 }
     if ($failed.Count -lt $results.Count) { return 1 }
     2
@@ -95,7 +95,23 @@ function Invoke-CdCommandLineInstall {
 }
 
 function Invoke-CdCommandLineUpdate {
+    # --background: the regular look for the autostart and the symbol (see Invoke-CdBackgroundUpdateCheck).
+    # --silent: the one click on the symbol in the notification area; the outcome arrives as a notification.
     param([pscustomobject]$Parsed)
+    if ($Parsed.Flags['background']) {
+        [void](Invoke-CdBackgroundUpdateCheck)
+        return 0
+    }
+    if ($Parsed.Flags['silent'] -and -not $Parsed.Flags['check']) {
+        try { $result = Install-CdUpdate }
+        catch {
+            [void](Show-CdNotification -Title (Get-CdText 'update.failedTitle') -Message (Get-CdErrorInfo $_).Title -Kind 'Warning')
+            throw
+        }
+        [void](Show-CdNotification -Title 'CloudDrives' -Message $result.Message)
+        if ($result.Success) { return 0 }
+        return 1
+    }
     if ($Parsed.Flags['check']) {
         $state = Get-CdUpdateState
         if (-not $state.Latest) { Write-CdInfo -Text (Get-CdText 'error.CD-8004.title') }
@@ -291,6 +307,8 @@ function Invoke-CdCli {
         if (-not $silent) {
             Initialize-CdConsole
             if ($parsed.Flags.ContainsKey('window')) { Set-CdConsoleIdentity }
+            # Automatic updates wait while a window is open; the symbol in the notification area is none.
+            if ($parsed.Command -ne 'tray') { Register-CdWindow }
         }
 
         switch ($parsed.Command) {
