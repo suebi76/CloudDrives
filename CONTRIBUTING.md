@@ -47,3 +47,9 @@ Danke für dein Interesse an CloudDrives!
 1. Version in `src/CloudDrives.psd1` und in `CHANGELOG.md` setzen.
 2. Tag `vX.Y.Z` pushen. Der Release-Workflow baut `CloudDrives-X.Y.Z.zip`, `install.ps1` und `SHA256SUMS.txt` und
    veröffentlicht das Release mit dem passenden Abschnitt aus dem CHANGELOG.
+
+**Testversionen:** In `src/CloudDrives.psd1` zusätzlich `Prerelease = 'preview.1'` unter `PrivateData.PSData` setzen,
+im CHANGELOG den Abschnitt `## [X.Y.Z-preview.1]` anlegen und den Tag `vX.Y.Z-preview.1` pushen. Der Workflow
+veröffentlicht sie als Vorabversion (Pre-release). Nur Installationen mit „Testversionen erhalten“ bekommen sie;
+`install.ps1` und alle anderen bleiben bei der neuesten regulären Version. Für die reguläre Version die Zeile
+`Prerelease` wieder entfernen.

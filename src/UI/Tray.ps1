@@ -1,5 +1,6 @@
 ﻿# The CloudDrives symbol in the notification area: a status dot (green = connected, yellow = reconnecting,
 # red = needs attention, grey = nothing connected), the drives, connect/disconnect, the menu and the diagnosis.
+# It also looks for new versions every few hours and installs one with a single click.
 # Deliberately lean: actions run as separate CloudDrives processes, so the symbol itself never blocks.
 
 $script:CdTrayColors = @{ ok = '#22C55E'; warn = '#F59E0B'; error = '#EF4444'; idle = '#9CA3AF' }
@@ -74,7 +75,7 @@ function Update-CdTray {
     $notify.Text = $tip
 
     $syncApp = Get-CdSyncAppPath
-    $signature = $state.Level + '|' + $state.Text + '|' + [bool]$syncApp + '|' + ((@($state.Drives) | ForEach-Object { '{0}{1}{2}' -f $_.Letter, $_.Connected, $_.Problem }) -join ',')
+    $signature = $state.Level + '|' + $state.Text + '|' + [bool]$syncApp + '|' + $state.Update + '|' + ((@($state.Drives) | ForEach-Object { '{0}{1}{2}' -f $_.Letter, $_.Connected, $_.Problem }) -join ',')
     $menu = $notify.ContextMenuStrip
     if ($signature -eq $script:CdTraySignature -or $menu.Visible) { return }
     $script:CdTraySignature = $signature
@@ -82,6 +83,12 @@ function Update-CdTray {
     $menu.Items.Clear()
     [void](Add-CdTrayMenuItem -Menu $menu -Text $state.Text -Enabled $false)
     [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+    if ($state.Update) {
+        # One click: a hidden process installs it and reports by notification; the symbol then restarts.
+        $item = Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.installUpdate' $state.Update) -OnClick { Start-CdTrayAction -Arguments @('update', '--silent') }
+        $item.Font = New-Object System.Drawing.Font($item.Font, [System.Drawing.FontStyle]::Bold)
+        [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
+    }
     foreach ($drive in @($state.Drives)) {
         $text = '{0}  {1}' -f $drive.Letter, $drive.Label
         if (-not $drive.Connected) { $text += '  (' + (Get-CdText 'tray.notConnected') + ')' }
@@ -123,6 +130,8 @@ function Start-CdTray {
         $script:CdTrayIcons = New-CdTrayIcons
         $script:CdTraySignature = $null
         $script:CdTrayTicks = 0
+        # The first look for updates waits a few minutes: right after signing in, the autostart has just looked.
+        $script:CdTrayNextUpdateLook = (Get-Date).AddMinutes((Get-Random -Minimum 3 -Maximum 10))
         $script:CdTrayExit = $exit
         $script:CdTrayContext = New-Object System.Windows.Forms.ApplicationContext
         $script:CdTrayNotify = New-Object System.Windows.Forms.NotifyIcon
@@ -144,6 +153,10 @@ function Start-CdTray {
                     if ($script:CdTrayTicks -ge 10) {
                         $script:CdTrayTicks = 0
                         Update-CdTray
+                        if ((Get-Date) -ge $script:CdTrayNextUpdateLook) {
+                            $script:CdTrayNextUpdateLook = (Get-Date).AddMinutes(15)
+                            if (Test-CdTrayUpdateCheckDue) { Start-CdTrayAction -Arguments @('update', '--background', '--silent') }
+                        }
                     }
                 }
                 catch { Write-CdLog -Level WARN -Component 'Tray' -Message "Refresh failed: $($_.Exception.Message)" }

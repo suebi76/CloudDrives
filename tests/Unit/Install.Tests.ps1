@@ -113,7 +113,7 @@ Describe 'Release metadata' {
 
     It 'reads the version from a module manifest' {
         InModuleScope CloudDrives {
-            Get-CdManifestVersion -Path (Join-Path (Get-CdContext).SrcRoot 'CloudDrives.psd1') | Should -Be ([version](Get-CdContext).Version)
+            Get-CdManifestVersion -Path (Join-Path (Get-CdContext).SrcRoot 'CloudDrives.psd1') | Should -Be (Get-CdContext).Version
         }
     }
 

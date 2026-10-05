@@ -52,7 +52,8 @@ function New-CdDefaultSettings {
         notifications = 'errors'
         autostartAsked = $false
         installAsked  = $false
-        lastUpdateCheck = ''
+        updates       = 'notify'
+        testVersions  = $false
         profile       = 'standard'
         cache         = [ordered]@{ dir = ''; maxSizePerDrive = '10G'; maxAge = '24h' }
         accounts      = @()
@@ -74,6 +75,8 @@ function Complete-CdSettings {
     }
     $Settings.accounts = @($Settings.accounts | Where-Object { $null -ne $_ })
     $Settings.drives = @($Settings.drives | Where-Object { $null -ne $_ })
+    # Up to 0.3.2 the day of the last look for updates; that now lives in state\update.json.
+    if ($Settings.Contains('lastUpdateCheck')) { $Settings.Remove('lastUpdateCheck') }
     $Settings
 }
 
@@ -138,6 +141,7 @@ function Test-CdSettings {
         if ($drive.encrypted -and [string]::IsNullOrWhiteSpace($drive.path)) { $problems.Add("vault drive '$($drive.id)': no folder") }
     }
     if (@('dpapi', 'masterPassword') -notcontains $Settings.securityMode) { $problems.Add("invalid securityMode '$($Settings.securityMode)'") }
+    if (@('notify', 'automatic', 'manual') -notcontains $Settings.updates) { $problems.Add("invalid updates '$($Settings.updates)'") }
     , $problems.ToArray()
 }
 

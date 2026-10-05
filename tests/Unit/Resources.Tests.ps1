@@ -71,8 +71,10 @@ Describe 'Documentation' {
     }
 
     It 'has release notes for the current version' {
-        $manifest = [IO.File]::ReadAllText((Join-Path $script:SrcRoot 'CloudDrives.psd1'))
-        $version = [regex]::Match($manifest, "ModuleVersion\s*=\s*'([0-9.]+)'").Groups[1].Value
+        # A test version has its own section: ## [0.3.3-preview.1]
+        $manifest = Import-PowerShellDataFile -Path (Join-Path $script:SrcRoot 'CloudDrives.psd1')
+        $version = [string]$manifest.ModuleVersion
+        if ($manifest.PrivateData.PSData.Prerelease) { $version += '-' + $manifest.PrivateData.PSData.Prerelease }
         $notes = & (Join-Path $script:RepoRoot 'tools\Get-ReleaseNotes.ps1') -Version $version
         $notes | Should -Match '(?m)^### (Added|Changed|Deprecated|Removed|Fixed|Security)$'
         $notes | Should -Not -Match '(?m)^## \['

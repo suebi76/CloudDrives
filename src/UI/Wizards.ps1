@@ -644,6 +644,8 @@ function Restart-CdFromInstallDir {
 
 function Start-CdUpdateUi {
     # Returns $true after an update was installed; the caller then restarts CloudDrives.
+    # -Confirmed: the user chose to install already ([U] in the main menu), so it does not ask again.
+    param([switch]$Confirmed)
     Write-Host ''
     Write-CdProgress -Text (Get-CdText 'update.checking')
     $updated = $false
@@ -654,7 +656,7 @@ function Start-CdUpdateUi {
         elseif (-not (Test-CdInstalled)) { Write-CdInfo -Text (Get-CdText 'update.notInstalled' ([string]$state.Latest)) -Color Yellow }
         else {
             Write-CdInfo -Text (Get-CdText 'update.available' ([string]$state.Latest), ([string]$state.Current))
-            if (Read-CdYesNo -Prompt (Get-CdText 'update.confirm') -Default $true) {
+            if ($Confirmed -or (Read-CdYesNo -Prompt (Get-CdText 'update.confirm') -Default $true)) {
                 $result = Install-CdUpdate -OnProgress { param([string]$Status) Write-CdProgress -Text $Status }
                 Write-CdResult -Result $result
                 $updated = [bool]($result.Success -and $result.Data)
@@ -706,10 +708,16 @@ function Start-CdSettingsMenu {
         Write-CdInfo -Text ('[2] ' + (Get-CdText 'settings.watchdog' $watchdogText)) -Color White
         Write-CdInfo -Text ('[3] ' + (Get-CdText 'settings.tray' $trayText)) -Color White
         Write-CdInfo -Text ('[4] ' + (Get-CdText 'settings.notifications' (Get-CdText "settings.notifications.$($settings.notifications)"))) -Color White
-        Write-CdInfo -Text ('[5] ' + (Get-CdText 'settings.checkUpdates')) -Color White
-        $valid = @('1', '2', '3', '4', '5', '6', '0')
-        if (Test-CdInstalled) { Write-CdInfo -Text ('[6] ' + (Get-CdText 'settings.uninstall')) -Color White }
-        else { Write-CdInfo -Text ('[6] ' + (Get-CdText 'settings.install')) -Color White }
+        Write-CdInfo -Text ('[5] ' + (Get-CdText 'settings.updates' (Get-CdText "settings.updates.$($settings.updates)"))) -Color White
+        Write-CdHint -Text (Get-CdText "settings.updatesHint.$($settings.updates)")
+        $testText = Get-CdText 'settings.off'
+        if ($settings.testVersions) { $testText = Get-CdText 'settings.on' }
+        Write-CdInfo -Text ('[6] ' + (Get-CdText 'settings.testVersions' $testText)) -Color White
+        Write-CdHint -Text (Get-CdText 'settings.testVersionsHint')
+        Write-CdInfo -Text ('[7] ' + (Get-CdText 'settings.checkUpdates')) -Color White
+        $valid = @('1', '2', '3', '4', '5', '6', '7', '8', '0')
+        if (Test-CdInstalled) { Write-CdInfo -Text ('[8] ' + (Get-CdText 'settings.uninstall')) -Color White }
+        else { Write-CdInfo -Text ('[8] ' + (Get-CdText 'settings.install')) -Color White }
         Write-CdInfo -Text ('[0] ' + (Get-CdText 'manage.back')) -Color White
         switch (Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid $valid) {
             '2' {
@@ -730,12 +738,23 @@ function Start-CdSettingsMenu {
                 Wait-CdKeyPress
             }
             '5' {
+                $order = @('notify', 'automatic', 'manual')
+                $settings.updates = $order[([array]::IndexOf($order, [string]$settings.updates) + 1) % $order.Count]
+                Save-CdSettings -Settings $settings
+                Reset-CdUpdateCheck
+            }
+            '6' {
+                $settings.testVersions = -not $settings.testVersions
+                Save-CdSettings -Settings $settings
+                Reset-CdUpdateCheck
+            }
+            '7' {
                 if (@(Start-CdUpdateUi) | Where-Object { $_ -is [bool] } | Select-Object -Last 1) {
                     Restart-CdFromInstallDir
                     return 'exit'
                 }
             }
-            '6' {
+            '8' {
                 if (Test-CdInstalled) {
                     if (Start-CdUninstallUi) { return 'exit' }
                 }

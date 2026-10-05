@@ -72,6 +72,12 @@ function Write-CdInfo {
     foreach ($line in ($Text -split "`n")) { Write-Host ('  ' + $line.TrimEnd("`r")) -ForegroundColor $Color }
 }
 
+function Write-CdHint {
+    # A short explanation below a menu entry: indented and grey, one line per line of the text.
+    param([string]$Text)
+    foreach ($line in ($Text -split "`n")) { Write-CdInfo -Text ('    ' + $line.TrimEnd("`r")) -Color DarkGray }
+}
+
 function Write-CdStep {
     param([string]$Text)
     Complete-CdProgress

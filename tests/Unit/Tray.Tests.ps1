@@ -119,6 +119,35 @@ Describe 'Tray symbol' {
             }
         }
 
+        It 'offers a newer version at the top of its menu, installed hidden with one click' {
+            InModuleScope CloudDrives {
+                Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+                Mock Get-CdPendingUpdate { '99.0.0' }
+                Mock Get-CdSyncAppPath { $null }
+                Mock Start-CdTrayAction { }
+                $script:CdTrayIcons = New-CdTrayIcons
+                $script:CdTraySignature = $null
+                $script:CdTrayNotify = New-Object System.Windows.Forms.NotifyIcon
+                $script:CdTrayNotify.ContextMenuStrip = New-Object System.Windows.Forms.ContextMenuStrip
+                try {
+                    Update-CdTray
+                    $entry = @($script:CdTrayNotify.ContextMenuStrip.Items)[2]
+                    $entry.Text | Should -Be (Get-CdText 'tray.installUpdate' '99.0.0')
+                    $entry.Font.Bold | Should -BeTrue
+                    $entry.PerformClick()
+                    Should -Invoke Start-CdTrayAction -Times 1 -Exactly -ParameterFilter { ($Arguments -join ' ') -eq 'update --silent' -and -not $Visible }
+                    # Once installed, the entry is gone.
+                    Mock Get-CdPendingUpdate { $null }
+                    Update-CdTray
+                    @($script:CdTrayNotify.ContextMenuStrip.Items | Where-Object { $_.Text -eq (Get-CdText 'tray.installUpdate' '99.0.0') }) | Should -BeNullOrEmpty
+                }
+                finally {
+                    $script:CdTrayNotify.Dispose()
+                    $script:CdTrayNotify = $null
+                }
+            }
+        }
+
         It 'finds CloudDrive-Sync only when it is installed for the user' {
             InModuleScope CloudDrives -Parameters @{ Root = $TestDrive } {
                 param($Root)

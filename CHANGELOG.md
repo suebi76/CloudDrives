@@ -3,6 +3,26 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.3.3] – 2026-10-05
+
+### Added
+
+- How new versions arrive is a setting (Einstellungen → "Neue Versionen"), as in CloudDrive-Sync:
+  - "Hinweis zeigen, Installation mit einem Klick" (default): CloudDrives looks every six hours and tells you once
+    per version. The symbol in the notification area then offers "CloudDrives <version> installieren" - one click
+    installs it in the background and reports by notification; the menu offers it with [U].
+  - "Automatisch installieren": new versions are installed in the background as soon as no CloudDrives window is
+    open. Connected drives stay connected.
+  - "Nur wenn ich nachsehe": CloudDrives never looks on its own.
+- "Testversionen erhalten": test versions (GitHub pre-releases such as 0.3.4-preview.1) count as well. They arrive
+  before everyone else's but may still have bugs. A test version carries its label in the version
+  (PrivateData.PSData.Prerelease in the module manifest); the release workflow publishes its tag as a pre-release.
+
+### Changed
+
+- The symbol in the notification area looks for new versions every few hours itself, not only after the autostart
+- What the last look found is kept in `state\update.json`; settings.json no longer has `lastUpdateCheck`
+
 ## [0.3.2] – 2026-10-05
 
 ### Added

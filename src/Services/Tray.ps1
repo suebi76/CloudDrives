@@ -44,8 +44,8 @@ function Get-CdSyncAppPath {
 }
 
 function Get-CdTrayState {
-    # What the symbol shows: Level (ok/warn/error/idle), a short Text, every drive with its state and the
-    # accounts whose sign-in has to be renewed.
+    # What the symbol shows: Level (ok/warn/error/idle), a short Text, every drive with its state, the accounts whose
+    # sign-in has to be renewed and a newer version of CloudDrives found on GitHub (Update).
     # The symbol runs for hours, so settings changed by another CloudDrives window are read again.
     $file = (Get-CdContext).SettingsFile
     $stamp = 0
@@ -103,7 +103,15 @@ function Get-CdTrayState {
         Text            = $text
         Drives          = $drives
         ReloginAccounts = $relogin
+        Update          = Get-CdPendingUpdate
     }
+}
+
+function Test-CdTrayUpdateCheckDue {
+    # Whether the symbol should start the hidden "update --background" now: the regular look on GitHub is due, or a
+    # version waits to be installed automatically and no CloudDrives window is open any more.
+    if (Test-CdUpdateCheckDue) { return $true }
+    (Get-CdSettings).updates -eq 'automatic' -and (Get-CdPendingUpdate) -and -not (Test-CdWindowOpen)
 }
 
 function Start-CdTrayProcess {
