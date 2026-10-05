@@ -97,6 +97,7 @@ function Start-CdConsoleMenu {
         Wait-CdKeyPress
     }
 
+    try { if (Test-CdInstalled) { Update-CdShortcuts } } catch { Write-CdLog -Level DEBUG -Component 'Menu' -Message "Shortcuts: $($_.Exception.Message)" }
     # Drives renamed in Explorer keep their names in the menu as well.
     try { [void](Sync-CdDriveLabels) } catch { Write-CdLog -Level DEBUG -Component 'Menu' -Message "Explorer names: $($_.Exception.Message)" }
     # The status symbol belongs to CloudDrives (it may have been hidden earlier in this session).
@@ -120,14 +121,14 @@ function Start-CdConsoleMenu {
             @('1', 'menu.connectAll', '2', 'menu.disconnectAll'),
             @('3', 'menu.addAccount', '4', 'menu.manageAccounts'),
             @('5', 'menu.manageDrives', '6', 'menu.settings'),
-            @('7', 'menu.diagnostics', '8', 'menu.refresh')
+            @('7', 'menu.diagnostics', '8', 'menu.refresh'),
+            @('9', 'menu.about', '0', 'menu.exit')
         )
         foreach ($row in $menu) {
             $left = ('[{0}] {1}' -f $row[0], (Get-CdText $row[1])).PadRight(28)
             Write-CdInfo -Text ($left + ('[{0}] {1}' -f $row[2], (Get-CdText $row[3]))) -Color White
         }
-        Write-CdInfo -Text ('[0] ' + (Get-CdText 'menu.exit')) -Color White
-        $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '4', '5', '6', '7', '8', '0')
+        $choice = Read-CdChoice -Prompt (Get-CdText 'ui.choose') -Valid @('1', '2', '3', '4', '5', '6', '7', '8', '9', '0')
         try {
             switch ($choice) {
                 '1' { Invoke-CdConnectUi }
@@ -138,6 +139,11 @@ function Start-CdConsoleMenu {
                 '6' { if ((Start-CdSettingsMenu) -eq 'exit') { return 0 } }
                 '7' { Start-CdDoctorUi }
                 '8' { $script:CdQuotaCache = @{} }
+                '9' {
+                    Clear-CdScreen
+                    Show-CdAbout
+                    Wait-CdKeyPress
+                }
                 '0' { return 0 }
             }
         }

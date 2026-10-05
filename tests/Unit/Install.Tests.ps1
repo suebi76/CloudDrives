@@ -39,6 +39,68 @@ Describe 'Install locations' {
     }
 }
 
+Describe 'Windows of its own' {
+    It 'opens them in the classic console window and marks them as its own' {
+        InModuleScope CloudDrives {
+            $start = Get-CdWindowStart -AppRoot 'D:\Some Folder\CloudDrives' -Arguments @('doctor', '--pause')
+            $start.FilePath | Should -Be (Join-Path $env:SystemRoot 'System32\conhost.exe')
+            $start.ArgumentList | Should -Be '"D:\Some Folder\CloudDrives\CloudDrives.bat" doctor --pause --window'
+            $start.WorkingDirectory | Should -Be ([Environment]::GetFolderPath('UserProfile'))
+            (ConvertFrom-CdCliArguments -Arguments @('--window')).Command | Should -Be 'menu'
+        }
+    }
+
+    It 'changes shortcuts of earlier versions to the console window, once' {
+        InModuleScope CloudDrives -Parameters @{ Root = $TestDrive } {
+            param($Root)
+            $env:CLOUDDRIVES_SHORTCUT_DIR = Join-Path $Root 'Shortcuts'
+            try {
+                $app = Join-Path $Root 'Programs\CloudDrives'
+                New-Item -ItemType Directory -Path $app -Force | Out-Null
+                Set-Content -LiteralPath (Join-Path $app 'CloudDrives.bat') -Value '@echo off'
+                $paths = Get-CdShortcutPaths
+                New-CdShortcut -Path $paths.StartMenu -Target (Join-Path $app 'CloudDrives.bat')
+                Update-CdShortcuts
+                $link = (New-Object -ComObject WScript.Shell).CreateShortcut($paths.StartMenu)
+                $link.TargetPath | Should -Be (Join-Path $env:SystemRoot 'System32\conhost.exe')
+                $link.Arguments | Should -Be ('"' + (Join-Path $app 'CloudDrives.bat') + '" --window')
+                $link.IconLocation | Should -Match 'clouddrives\.ico,0$'
+                # A desktop shortcut the user removed stays removed.
+                Test-Path -LiteralPath $paths.Desktop | Should -BeFalse
+            }
+            finally { Remove-Item Env:\CLOUDDRIVES_SHORTCUT_DIR -ErrorAction SilentlyContinue }
+        }
+    }
+
+    It 'gives its window the CloudDrives symbol only where it can' {
+        InModuleScope CloudDrives {
+            Initialize-CdNative | Should -BeTrue
+            'CloudDrives.Native.ConsoleWindow' -as [type] | Should -Not -BeNullOrEmpty
+            # Without a visible console window of its own (tests, Windows Terminal) nothing changes and nothing fails.
+            { Set-CdConsoleIdentity } | Should -Not -Throw
+        }
+    }
+}
+
+Describe 'About CloudDrives' {
+    It 'names version, author, licence and components' {
+        InModuleScope CloudDrives {
+            $script:Shown = New-Object System.Collections.Generic.List[string]
+            Mock Write-CdInfo { $script:Shown.Add($Text) }
+            Mock Write-CdHeader { }
+            Show-CdAbout
+            $text = $script:Shown -join "`n"
+            $text | Should -Match ([regex]::Escape('CloudDrives ' + (Get-CdContext).Version))
+            $text | Should -Match ([regex]::Escape([string][char]0x00A9 + ' 2026 Steffen Schwabe'))
+            $text | Should -Match 'MIT'
+            $text | Should -Match 'https://github\.com/suebi76/CloudDrives'
+            $text | Should -Match 'rclone'
+            $text | Should -Match 'WinFsp'
+            (ConvertFrom-CdCliArguments -Arguments @('info')).Command | Should -Be 'about'
+        }
+    }
+}
+
 Describe 'Release metadata' {
     It 'reads the hash of a file from a checksum list' {
         InModuleScope CloudDrives {

@@ -71,7 +71,8 @@ Describe 'Install, update and uninstall' {
             foreach ($link in @((Get-CdShortcutPaths).StartMenu, (Get-CdShortcutPaths).Desktop)) {
                 Test-Path -LiteralPath $link | Should -BeTrue
                 $shortcut = $shell.CreateShortcut($link)
-                $shortcut.TargetPath | Should -Be (Join-Path $dir 'CloudDrives.bat')
+                $shortcut.TargetPath | Should -Be (Join-Path $env:SystemRoot 'System32\conhost.exe')
+                $shortcut.Arguments | Should -Be ('"' + (Join-Path $dir 'CloudDrives.bat') + '" --window')
                 $shortcut.WorkingDirectory | Should -Be ([Environment]::GetFolderPath('UserProfile'))
             }
         }

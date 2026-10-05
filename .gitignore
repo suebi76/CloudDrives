@@ -21,6 +21,7 @@
 !/PSScriptAnalyzerSettings.psd1
 !/README.md
 !/SECURITY.md
+!/THIRD-PARTY-NOTICES.md
 
 # Never commit these - not even inside allowed folders.
 *.conf

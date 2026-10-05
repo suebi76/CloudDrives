@@ -114,7 +114,8 @@ Describe 'Tray symbol' {
                 Start-CdTrayAction -Arguments @('connect', 'all', '--silent')
                 Should -Invoke Start-CdDetachedProcess -Times 1 -Exactly -ParameterFilter { $FilePath -match 'conhost\.exe$' -and $RawArguments -match 'connect all --silent' }
                 Start-CdTrayAction -Arguments @('doctor', '--pause') -Visible
-                Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter { $FilePath -match 'CloudDrives\.bat$' -and $ArgumentList -match 'doctor --pause' }
+                # Windows of its own open in the classic console window, which shows the CloudDrives symbol.
+                Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter { $FilePath -match 'conhost\.exe$' -and $ArgumentList -match 'CloudDrives\.bat" doctor --pause .*--window$' }
             }
         }
 

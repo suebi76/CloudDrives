@@ -38,6 +38,7 @@ function New-CdShortcut {
     param(
         [Parameter(Mandatory)][string]$Path,
         [Parameter(Mandatory)][string]$Target,
+        [string]$Arguments,
         [string]$WorkingDirectory,
         [string]$Icon,
         [string]$Description
@@ -47,6 +48,7 @@ function New-CdShortcut {
     $shell = New-Object -ComObject WScript.Shell
     $link = $shell.CreateShortcut($Path)
     $link.TargetPath = $Target
+    if ($Arguments) { $link.Arguments = $Arguments }
     if ($WorkingDirectory) { $link.WorkingDirectory = $WorkingDirectory }
     if ($Icon) { $link.IconLocation = "$Icon,0" }
     if ($Description) { $link.Description = $Description }
@@ -59,26 +61,58 @@ function Get-CdNeutralDirectory {
     [Environment]::GetFolderPath('UserProfile')
 }
 
+function Get-CdWindowStart {
+    # How CloudDrives opens a window of its own: in the classic console window, which shows the CloudDrives symbol in
+    # the taskbar - Windows Terminal (the default in Windows 11) would show its own. "--window" tells CloudDrives that
+    # the window is its own.
+    param([string]$AppRoot = (Get-CdContext).AppRoot, [AllowEmptyCollection()][string[]]$Arguments = @())
+    $all = @($Arguments) + '--window'
+    [pscustomobject]@{
+        FilePath         = Join-Path $env:SystemRoot 'System32\conhost.exe'
+        ArgumentList     = '"' + (Join-Path $AppRoot 'CloudDrives.bat') + '" ' + (ConvertTo-CdArgumentString -ArgumentList $all)
+        WorkingDirectory = Get-CdNeutralDirectory
+    }
+}
+
 function Install-CdShortcuts {
     param([Parameter(Mandatory)][string]$AppRoot, [switch]$Desktop)
     $paths = Get-CdShortcutPaths
     $targets = @($paths.StartMenu)
     if ($Desktop) { $targets += $paths.Desktop }
+    $start = Get-CdWindowStart -AppRoot $AppRoot
     foreach ($path in $targets) {
-        New-CdShortcut -Path $path -Target (Join-Path $AppRoot 'CloudDrives.bat') -WorkingDirectory (Get-CdNeutralDirectory) `
+        New-CdShortcut -Path $path -Target $start.FilePath -Arguments $start.ArgumentList -WorkingDirectory $start.WorkingDirectory `
             -Icon (Join-Path $AppRoot 'src\Resources\icons\clouddrives.ico') -Description (Get-CdText 'install.shortcutDescription')
     }
     $targets
+}
+
+function Update-CdShortcuts {
+    # Shortcuts of versions up to 0.3.1 start CloudDrives.bat directly, which opens Windows Terminal with its own symbol
+    # in the taskbar. They now start the console window - once, and only shortcuts that still point to a program folder.
+    $paths = Get-CdShortcutPaths
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($path in @($paths.StartMenu, $paths.Desktop)) {
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        $target = $shell.CreateShortcut($path).TargetPath
+        if ($target -notlike '*\CloudDrives.bat' -or -not (Test-Path -LiteralPath $target)) { continue }
+        $appRoot = Split-Path -Parent $target
+        $start = Get-CdWindowStart -AppRoot $appRoot
+        New-CdShortcut -Path $path -Target $start.FilePath -Arguments $start.ArgumentList -WorkingDirectory $start.WorkingDirectory `
+            -Icon (Join-Path $appRoot 'src\Resources\icons\clouddrives.ico') -Description (Get-CdText 'install.shortcutDescription')
+        Write-CdLog -Component 'Install' -Message "Shortcut now opens the console window: $path"
+    }
 }
 
 function Start-CdInstalledApplication {
     # Opens the installed CloudDrives in a new window (after an installation or update); the caller then ends.
     $bat = Join-Path (Get-CdInstallDir) 'CloudDrives.bat'
     if (-not (Test-Path -LiteralPath $bat)) { throw (New-CdException -Code 'CD-8001' -Detail "no CloudDrives application in '$(Get-CdInstallDir)'") }
-    $parameters = @{ FilePath = $bat; WorkingDirectory = (Get-CdNeutralDirectory) }
     $ctx = Get-CdContext
-    if (-not $ctx.IsDefaultHome) { $parameters.ArgumentList = ConvertTo-CdArgumentString -ArgumentList @("--home=$($ctx.Home)") }
-    Start-Process @parameters
+    $arguments = @()
+    if (-not $ctx.IsDefaultHome) { $arguments += "--home=$($ctx.Home)" }
+    $start = Get-CdWindowStart -AppRoot (Get-CdInstallDir) -Arguments $arguments
+    Start-Process -FilePath $start.FilePath -ArgumentList $start.ArgumentList -WorkingDirectory $start.WorkingDirectory
 }
 
 function Move-CdDirectory {

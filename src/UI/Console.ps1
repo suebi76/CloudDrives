@@ -27,10 +27,43 @@ function Write-CdHeader {
     param([string]$Subtitle)
     Complete-CdProgress
     Write-Host ''
-    Write-Host ('  CloudDrives ' + (Get-CdContext).Version) -ForegroundColor Cyan -NoNewline
+    $ctx = Get-CdContext
+    Write-Host ('  CloudDrives ' + $ctx.Version) -ForegroundColor Cyan -NoNewline
     if ($Subtitle) { Write-Host ('   ' + $Subtitle) -ForegroundColor Gray }
+    elseif ($ctx.Copyright) { Write-Host ('   ' + $ctx.Copyright) -ForegroundColor DarkGray }
     else { Write-Host '' }
     Write-CdRule
+}
+
+function Set-CdConsoleIdentity {
+    # CloudDrives runs in a window of its own (menu, diagnosis from the symbol): the window shows the CloudDrives symbol
+    # in the title bar and the taskbar and is not grouped with other console windows. Windows Terminal owns its
+    # windows - there nothing changes, which is why CloudDrives opens its windows in the classic console window.
+    if (-not (Initialize-CdNative)) { return }
+    $ctx = Get-CdContext
+    $start = Get-CdWindowStart -AppRoot $ctx.AppRoot
+    try {
+        [void][CloudDrives.Native.ConsoleWindow]::SetIdentity((Join-Path $ctx.ResourcesDir 'icons\clouddrives.ico'), 'suebi76.CloudDrives',
+            ('"{0}" {1}' -f $start.FilePath, $start.ArgumentList), 'CloudDrives')
+    }
+    catch { Write-CdLog -Level DEBUG -Component 'UI' -Message "Window symbol not set: $($_.Exception.Message)" }
+}
+
+function Show-CdAbout {
+    # Version, author, licence and the building blocks CloudDrives stands on.
+    $ctx = Get-CdContext
+    Write-CdHeader -Subtitle (Get-CdText 'menu.about')
+    Write-Host ''
+    Write-CdInfo -Text ('CloudDrives ' + $ctx.Version) -Color White
+    Write-CdInfo -Text $ctx.Copyright -Color White
+    Write-CdInfo -Text (Get-CdText 'about.license')
+    Write-CdInfo -Text (Get-CdText 'about.project' ('https://github.com/' + (Get-CdAppInfo).repository))
+    Write-Host ''
+    Write-CdInfo -Text (Get-CdText 'about.components') -Color White
+    Write-CdInfo -Text (Get-CdText 'about.rclone')
+    Write-CdInfo -Text (Get-CdText 'about.winfsp')
+    Write-Host ''
+    Write-CdInfo -Text (Get-CdText 'about.notices' (Join-Path $ctx.AppRoot 'THIRD-PARTY-NOTICES.md')) -Color DarkGray
 }
 
 function Write-CdInfo {

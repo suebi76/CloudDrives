@@ -2,6 +2,9 @@
 rem CloudDrives - mounts OneDrive and Google Drive accounts as Windows drive letters.
 rem Without arguments the interactive menu opens. "CloudDrives.bat help" lists all commands.
 setlocal
+rem In Windows Terminal the taskbar would show the terminal's symbol: the menu opens in a console window of its own,
+rem which shows the CloudDrives symbol.
+if "%~1"=="" if defined WT_SESSION (set "WT_SESSION=" & start "" "%SystemRoot%\System32\conhost.exe" "%~f0" --window & exit /b 0)
 set "CD_ROOT=%~dp0"
 rem Started from PowerShell 7, the inherited PSModulePath would make Windows PowerShell load
 rem incompatible core modules. Clearing it restores the defaults for this process only.
