@@ -118,14 +118,14 @@ Describe 'Tray symbol' {
             }
         }
 
-        It 'finds CloudDrives-Sync only when it is installed for the user' {
+        It 'finds CloudDrive-Sync only when it is installed for the user' {
             InModuleScope CloudDrives -Parameters @{ Root = $TestDrive } {
                 param($Root)
                 Get-CdSyncAppPath -LocalAppData $Root | Should -BeNullOrEmpty
-                $folder = Join-Path $Root 'Programs\CloudDrives-Sync'
+                $folder = Join-Path $Root 'Programs\CloudDrive-Sync'
                 New-Item -ItemType Directory -Path $folder -Force | Out-Null
-                Set-Content -LiteralPath (Join-Path $folder 'CloudDrives-Sync.exe') -Value 'x'
-                Get-CdSyncAppPath -LocalAppData $Root | Should -Be (Join-Path $folder 'CloudDrives-Sync.exe')
+                Set-Content -LiteralPath (Join-Path $folder 'CloudDrive-Sync.exe') -Value 'x'
+                Get-CdSyncAppPath -LocalAppData $Root | Should -Be (Join-Path $folder 'CloudDrive-Sync.exe')
             }
         }
     }

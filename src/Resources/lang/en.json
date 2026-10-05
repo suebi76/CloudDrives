@@ -175,7 +175,7 @@
   "tray.connectAll": "Connect all",
   "tray.disconnectAll": "Disconnect all",
   "tray.open": "Open CloudDrives",
-  "tray.openSync": "Open CloudDrives-Sync",
+  "tray.openSync": "Open CloudDrive-Sync",
   "tray.diagnose": "Diagnosis",
   "tray.hide": "Hide symbol",
   "doctor.tray": "Notification area symbol",

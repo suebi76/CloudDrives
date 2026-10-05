@@ -7,8 +7,8 @@ All notable changes to CloudDrives are documented here. The format follows
 
 ### Added
 
-- The symbol in the notification area opens CloudDrives-Sync - the new, separate program that keeps folders on
-  this PC in step with Nextcloud, IServ and other WebDAV servers - when it is installed ("CloudDrives-Sync öffnen")
+- The symbol in the notification area opens CloudDrive-Sync - the new, separate program that keeps folders on
+  this PC in step with Nextcloud, IServ and other WebDAV servers - when it is installed ("CloudDrive-Sync öffnen")
 
 ### Changed
 
