@@ -3,6 +3,8 @@
 #   status [--json]   add-account   remove-account   relogin|neu-anmelden [<account>]
 #   change-client|client-id [<account>]   doctor|diagnose [--fix] [--bundle [--out=<zip>]] [--json]
 #   watchdog [on|off|status]   tray [on|off|status]   autostart   install   update   uninstall   setup   version   help
+#   about|info
+# "--window" (set when CloudDrives opens a window of its own): the window shows the CloudDrives symbol in the taskbar.
 
 $script:CdCommandAliases = @{
     'verbinden'        = 'connect'
@@ -17,6 +19,7 @@ $script:CdCommandAliases = @{
     'aktualisieren'    = 'update'
     'deinstallieren'   = 'uninstall'
     'hilfe'            = 'help'
+    'info'             = 'about'
     '-?'               = 'help'
     '/?'               = 'help'
 }
@@ -285,10 +288,17 @@ function Invoke-CdCli {
             os = [Environment]::OSVersion.VersionString; home = $ctx.Home
         }
         if ($settingsError) { throw $settingsError }
-        if (-not $silent) { Initialize-CdConsole }
+        if (-not $silent) {
+            Initialize-CdConsole
+            if ($parsed.Flags.ContainsKey('window')) { Set-CdConsoleIdentity }
+        }
 
         switch ($parsed.Command) {
             'menu' { $exitCode = Get-CdLastInt (Start-CdConsoleMenu) }
+            'about' {
+                Show-CdAbout
+                if ($parsed.Flags.ContainsKey('pause')) { Wait-CdKeyPress }
+            }
             'connect' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineConnect -Parsed $parsed) }
             'disconnect' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineDisconnect -Parsed $parsed) }
             'status' { $exitCode = Get-CdLastInt (Invoke-CdCommandLineStatus -Parsed $parsed) }

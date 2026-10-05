@@ -176,6 +176,7 @@
   "tray.disconnectAll": "Disconnect all",
   "tray.open": "Open CloudDrives",
   "tray.openSync": "Open CloudDrive-Sync",
+  "tray.about": "About CloudDrives",
   "tray.diagnose": "Diagnosis",
   "tray.hide": "Hide symbol",
   "doctor.tray": "Notification area symbol",
@@ -234,6 +235,13 @@
   "menu.refresh": "Refresh",
   "menu.openLogs": "Open logs",
   "menu.exit": "Exit",
+  "menu.about": "About CloudDrives",
+  "about.license": "Free software under the MIT License. Documentation and graphics are under CC BY 4.0.",
+  "about.project": "Project on GitHub: {0}",
+  "about.components": "Components used",
+  "about.rclone": "rclone - drives and sign-in · MIT License · © Nick Craig-Wood",
+  "about.winfsp": "WinFsp - drive driver, installed separately · GPLv3 with FLOSS exception · © Bill Zissimopoulos",
+  "about.notices": "All licence notices: {0}",
 
   "status.noDrives": "No drives set up yet. Press [3] to add an account.",
   "status.connected": "connected",
@@ -459,7 +467,7 @@
   "wizard.remove.revokeHint": "Tip: at {0} you can also revoke the access at the provider.",
 
   "cli.unknownCommand": "Unknown command: {0}",
-  "help.text": "Usage: CloudDrives.bat [command] [options]\n\n  (no command)               open the menu\n  connect | verbinden        connect drives (all, or e.g. \"connect K\")\n  disconnect | trennen       disconnect drives (--force: despite running uploads)\n  status                     show status (--json for scripts)\n  autostart on|off           connect the drives automatically when Windows starts\n  install | installieren     install to %LOCALAPPDATA%\\Programs\\CloudDrives (--desktop)\n  update | aktualisieren     install the latest version (--check: only check)\n  uninstall | deinstallieren remove CloudDrives (--remove-data: also sign-ins)\n  add-account                add an account\n  remove-account             remove an account\n  relogin | neu-anmelden     sign an account in again without removing it (e.g. \"relogin K\")\n  change-client | client-id  change the own Google client ID of an account\n  doctor | diagnose          diagnosis (--fix: fix automatically, --bundle: support bundle, --json)\n  watchdog [on|off|status]   reconnect automatically (without option: check once now)\n  tray [on|off|status]       notification area symbol (without option: show it now)\n  setup | einrichten         check or install rclone and WinFsp\n  version                    show the program version\n  help | hilfe               this help\n\nOptions:\n  --silent                   no output (for autostart)\n\nLogs: %LOCALAPPDATA%\\CloudDrives\\logs",
+  "help.text": "Usage: CloudDrives.bat [command] [options]\n\n  (no command)               open the menu\n  connect | verbinden        connect drives (all, or e.g. \"connect K\")\n  disconnect | trennen       disconnect drives (--force: despite running uploads)\n  status                     show status (--json for scripts)\n  autostart on|off           connect the drives automatically when Windows starts\n  install | installieren     install to %LOCALAPPDATA%\\Programs\\CloudDrives (--desktop)\n  update | aktualisieren     install the latest version (--check: only check)\n  uninstall | deinstallieren remove CloudDrives (--remove-data: also sign-ins)\n  add-account                add an account\n  remove-account             remove an account\n  relogin | neu-anmelden     sign an account in again without removing it (e.g. \"relogin K\")\n  change-client | client-id  change the own Google client ID of an account\n  doctor | diagnose          diagnosis (--fix: fix automatically, --bundle: support bundle, --json)\n  watchdog [on|off|status]   reconnect automatically (without option: check once now)\n  tray [on|off|status]       notification area symbol (without option: show it now)\n  setup | einrichten         check or install rclone and WinFsp\n  about | info               version, licence and components used\n  version                    show the program version\n  help | hilfe               this help\n\nOptions:\n  --silent                   no output (for autostart)\n\nLogs: %LOCALAPPDATA%\\CloudDrives\\logs",
 
   "error.CD-0001.title": "Already connected",
   "error.CD-0001.fix": "Nothing to do.",

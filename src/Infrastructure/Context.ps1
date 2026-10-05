@@ -26,11 +26,16 @@ function Initialize-CdContext {
 
     $srcRoot = $script:CdModuleRoot
     $version = '0.0.0'
-    if ($ExecutionContext.SessionState.Module) { $version = [string]$ExecutionContext.SessionState.Module.Version }
+    $copyright = ''
+    if ($ExecutionContext.SessionState.Module) {
+        $version = [string]$ExecutionContext.SessionState.Module.Version
+        $copyright = [string]$ExecutionContext.SessionState.Module.Copyright
+    }
 
     $script:CdContext = [pscustomobject]@{
         PSTypeName    = 'CloudDrives.Context'
         Version       = $version
+        Copyright     = $copyright
         SrcRoot       = $srcRoot
         AppRoot       = Split-Path -Parent $srcRoot
         ResourcesDir  = Join-Path $srcRoot 'Resources'

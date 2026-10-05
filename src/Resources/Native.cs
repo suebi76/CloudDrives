@@ -409,4 +409,110 @@ namespace CloudDrives.Native
             }
         }
     }
+
+    // The window CloudDrives runs in (menu, diagnosis): the CloudDrives symbol in the title bar and the taskbar, and
+    // an identity of its own for the taskbar, so the window is not grouped with other console windows and pinning it
+    // starts CloudDrives again. Only the classic console window can be changed; Windows Terminal owns its windows.
+    public static class ConsoleWindow
+    {
+        private const int WM_SETICON = 0x0080;
+        private const int ICON_SMALL = 0;
+        private const int ICON_BIG = 1;
+        private const uint IMAGE_ICON = 1;
+        private const uint LR_LOADFROMFILE = 0x10;
+        private const ushort VT_LPWSTR = 31;
+        private static readonly Guid AppUserModelKeys = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3");
+
+        [StructLayout(LayoutKind.Sequential, Pack = 4)]
+        private struct PropertyKey
+        {
+            public Guid FormatId;
+            public uint PropertyId;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct PropVariant
+        {
+            public ushort Type;
+            public ushort Reserved1;
+            public ushort Reserved2;
+            public ushort Reserved3;
+            public IntPtr Value;
+            public IntPtr Value2;
+        }
+
+        [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        private interface IPropertyStore
+        {
+            void GetCount(out uint count);
+            void GetAt(uint index, out PropertyKey key);
+            void GetValue(ref PropertyKey key, out PropVariant value);
+            void SetValue(ref PropertyKey key, ref PropVariant value);
+            void Commit();
+        }
+
+        [DllImport("kernel32.dll")]
+        private static extern IntPtr GetConsoleWindow();
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr window);
+
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern IntPtr LoadImage(IntPtr instance, string name, uint type, int width, int height, uint load);
+
+        [DllImport("user32.dll")]
+        private static extern IntPtr SendMessage(IntPtr window, int message, IntPtr wParam, IntPtr lParam);
+
+        [DllImport("shell32.dll")]
+        private static extern int SHGetPropertyStoreForWindow(IntPtr window, ref Guid iid, [MarshalAs(UnmanagedType.Interface)] out IPropertyStore store);
+
+        // False when there is no classic console window to change (Windows Terminal, hidden window).
+        public static bool SetIdentity(string iconFile, string appId, string relaunchCommand, string displayName)
+        {
+            IntPtr window = GetConsoleWindow();
+            if (window == IntPtr.Zero || !IsWindowVisible(window)) return false;
+            // The icons stay loaded while the window exists; Windows only borrows them.
+            IntPtr small = LoadImage(IntPtr.Zero, iconFile, IMAGE_ICON, 16, 16, LR_LOADFROMFILE);
+            IntPtr big = LoadImage(IntPtr.Zero, iconFile, IMAGE_ICON, 32, 32, LR_LOADFROMFILE);
+            if (small != IntPtr.Zero) SendMessage(window, WM_SETICON, (IntPtr)ICON_SMALL, small);
+            if (big != IntPtr.Zero) SendMessage(window, WM_SETICON, (IntPtr)ICON_BIG, big);
+
+            Guid iid = typeof(IPropertyStore).GUID;
+            IPropertyStore store;
+            if (SHGetPropertyStoreForWindow(window, ref iid, out store) != 0 || store == null) return true;
+            try
+            {
+                // The relaunch details first: the taskbar reads them when the identity is set.
+                SetText(store, 2, relaunchCommand);  // System.AppUserModel.RelaunchCommand
+                SetText(store, 3, iconFile + ",0");  // System.AppUserModel.RelaunchIconResource
+                SetText(store, 4, displayName);      // System.AppUserModel.RelaunchDisplayNameResource
+                SetText(store, 5, appId);            // System.AppUserModel.ID
+                store.Commit();
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(store);
+            }
+            return true;
+        }
+
+        private static void SetText(IPropertyStore store, uint id, string text)
+        {
+            PropertyKey key = new PropertyKey();
+            key.FormatId = AppUserModelKeys;
+            key.PropertyId = id;
+            PropVariant value = new PropVariant();
+            value.Type = VT_LPWSTR;
+            value.Value = Marshal.StringToCoTaskMemUni(text);
+            try
+            {
+                store.SetValue(ref key, ref value);
+            }
+            finally
+            {
+                Marshal.FreeCoTaskMem(value.Value);
+            }
+        }
+    }
 }

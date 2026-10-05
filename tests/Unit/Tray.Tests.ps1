@@ -114,18 +114,44 @@ Describe 'Tray symbol' {
                 Start-CdTrayAction -Arguments @('connect', 'all', '--silent')
                 Should -Invoke Start-CdDetachedProcess -Times 1 -Exactly -ParameterFilter { $FilePath -match 'conhost\.exe$' -and $RawArguments -match 'connect all --silent' }
                 Start-CdTrayAction -Arguments @('doctor', '--pause') -Visible
-                Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter { $FilePath -match 'CloudDrives\.bat$' -and $ArgumentList -match 'doctor --pause' }
+                # Windows of its own open in the classic console window, which shows the CloudDrives symbol.
+                Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter { $FilePath -match 'conhost\.exe$' -and $ArgumentList -match 'CloudDrives\.bat" doctor --pause .*--window$' }
             }
         }
 
         It 'finds CloudDrive-Sync only when it is installed for the user' {
             InModuleScope CloudDrives -Parameters @{ Root = $TestDrive } {
                 param($Root)
-                Get-CdSyncAppPath -LocalAppData $Root | Should -BeNullOrEmpty
+                $noKey = 'HKCU:\Software\CloudDrives-Tests\' + [guid]::NewGuid().ToString('N')
+                Get-CdSyncAppPath -LocalAppData $Root -AppPathKey $noKey | Should -BeNullOrEmpty
                 $folder = Join-Path $Root 'Programs\CloudDrive-Sync'
                 New-Item -ItemType Directory -Path $folder -Force | Out-Null
                 Set-Content -LiteralPath (Join-Path $folder 'CloudDrive-Sync.exe') -Value 'x'
-                Get-CdSyncAppPath -LocalAppData $Root | Should -Be (Join-Path $folder 'CloudDrive-Sync.exe')
+                Get-CdSyncAppPath -LocalAppData $Root -AppPathKey $noKey | Should -Be (Join-Path $folder 'CloudDrive-Sync.exe')
+            }
+        }
+
+        It 'prefers the setup program''s installation and the place CloudDrive-Sync recorded' {
+            InModuleScope CloudDrives -Parameters @{ Root = $TestDrive } {
+                param($Root)
+                $key = 'HKCU:\Software\CloudDrives-Tests\' + [guid]::NewGuid().ToString('N')
+                try {
+                    foreach ($folder in 'Programs\CloudDrive-Sync', 'CloudDriveSync\current', 'Elsewhere') {
+                        New-Item -ItemType Directory -Path (Join-Path $Root $folder) -Force | Out-Null
+                        Set-Content -LiteralPath (Join-Path $Root "$folder\CloudDrive-Sync.exe") -Value 'x'
+                    }
+                    Get-CdSyncAppPath -LocalAppData $Root -AppPathKey $key | Should -Be (Join-Path $Root 'CloudDriveSync\current\CloudDrive-Sync.exe')
+                    New-Item -Path $key -Force | Out-Null
+                    Set-Item -LiteralPath $key -Value (Join-Path $Root 'Elsewhere\CloudDrive-Sync.exe')
+                    Get-CdSyncAppPath -LocalAppData $Root -AppPathKey $key | Should -Be (Join-Path $Root 'Elsewhere\CloudDrive-Sync.exe')
+                    # A recorded place whose program is gone is passed over.
+                    Remove-Item -LiteralPath (Join-Path $Root 'Elsewhere\CloudDrive-Sync.exe')
+                    Get-CdSyncAppPath -LocalAppData $Root -AppPathKey $key | Should -Be (Join-Path $Root 'CloudDriveSync\current\CloudDrive-Sync.exe')
+                }
+                finally {
+                    Remove-Item -LiteralPath $key -Recurse -Force -ErrorAction SilentlyContinue
+                    Remove-Item -LiteralPath 'HKCU:\Software\CloudDrives-Tests' -Recurse -Force -ErrorAction SilentlyContinue
+                }
             }
         }
     }

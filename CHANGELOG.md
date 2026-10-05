@@ -3,6 +3,24 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.3.2] – 2026-10-05
+
+### Added
+
+- "Über CloudDrives" - in the menu ([9]), in the menu of the symbol and as `CloudDrives.bat about`: version,
+  © 2026 Steffen Schwabe, licence, project on GitHub and the components used (THIRD-PARTY-NOTICES.md)
+- The header of the menu names the author
+
+### Changed
+
+- CloudDrives opens its windows (menu, diagnosis) in the classic console window, which shows the CloudDrives symbol in
+  the title bar and the taskbar - in Windows Terminal the terminal's symbol was there. The window is not grouped with
+  other console windows, and pinned to the taskbar it starts CloudDrives. Shortcuts of earlier versions are changed
+  once.
+- "CloudDrive-Sync öffnen" also finds CloudDrive-Sync when it was installed with its new setup program: the place it
+  records in Windows ("App Paths") comes first, then its usual folders
+- Licences: source code MIT, documentation and graphics CC BY 4.0
+
 ## [0.3.1] – 2026-10-05
 
 ### Added

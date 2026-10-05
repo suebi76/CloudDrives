@@ -43,9 +43,8 @@ function Start-CdTrayAction {
     if ($Visible) {
         $all = @($Arguments)
         if (-not $ctx.IsDefaultHome) { $all += "--home=$($ctx.Home)" }
-        $parameters = @{ FilePath = (Join-Path $ctx.AppRoot 'CloudDrives.bat'); WorkingDirectory = (Get-CdNeutralDirectory) }
-        if ($all.Count -gt 0) { $parameters.ArgumentList = ConvertTo-CdArgumentString -ArgumentList $all }
-        Start-Process @parameters
+        $start = Get-CdWindowStart -AppRoot $ctx.AppRoot -Arguments $all
+        Start-Process -FilePath $start.FilePath -ArgumentList $start.ArgumentList -WorkingDirectory $start.WorkingDirectory
         return
     }
     $command = Get-CdAutostartCommand -Command $Arguments
@@ -100,6 +99,7 @@ function Update-CdTray {
     # CloudDrives-Sync is a program of its own; it shows its window when it runs already.
     if ($syncApp) { [void](Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.openSync') -Tag $syncApp -OnClick { Start-Process -FilePath ([string]$this.Tag) }) }
     [void](Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.diagnose') -OnClick { Start-CdTrayAction -Arguments @('doctor', '--pause') -Visible })
+    [void](Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.about') -OnClick { Start-CdTrayAction -Arguments @('about', '--pause') -Visible })
     [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
     [void](Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.hide') -OnClick { $script:CdTrayContext.ExitThread() })
 }
@@ -119,6 +119,7 @@ function Start-CdTray {
     try {
         Add-Type -AssemblyName System.Windows.Forms, System.Drawing
         [System.Windows.Forms.Application]::EnableVisualStyles()
+        try { Update-CdShortcuts } catch { Write-CdLog -Level DEBUG -Component 'Tray' -Message "Shortcuts: $($_.Exception.Message)" }
         $script:CdTrayIcons = New-CdTrayIcons
         $script:CdTraySignature = $null
         $script:CdTrayTicks = 0

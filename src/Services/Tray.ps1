@@ -26,9 +26,20 @@ function Test-CdTrayRunning {
 function Get-CdSyncAppPath {
     # CloudDrive-Sync - the separate program that keeps folders on this PC in step with Nextcloud, IServ and other
     # WebDAV servers - when it is installed for this user. The symbol then opens it from its menu.
-    param([string]$LocalAppData = [Environment]::GetFolderPath('LocalApplicationData'))
-    $file = Join-Path $LocalAppData 'Programs\CloudDrive-Sync\CloudDrive-Sync.exe'
-    if (Test-Path -LiteralPath $file -PathType Leaf) { return $file }
+    # Installed with its setup program, CloudDrive-Sync records its place under "App Paths"; its usual folders
+    # follow, the one of the setup program first, then the one of earlier test versions.
+    param(
+        [string]$LocalAppData = [Environment]::GetFolderPath('LocalApplicationData'),
+        [string]$AppPathKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\App Paths\CloudDrive-Sync.exe'
+    )
+    $recorded = $null
+    $key = Get-Item -LiteralPath $AppPathKey -ErrorAction SilentlyContinue
+    if ($key) { $recorded = $key.GetValue('') }
+    $candidates = @($recorded, (Join-Path $LocalAppData 'CloudDriveSync\current\CloudDrive-Sync.exe'),
+        (Join-Path $LocalAppData 'Programs\CloudDrive-Sync\CloudDrive-Sync.exe'))
+    foreach ($file in $candidates) {
+        if ($file -and (Test-Path -LiteralPath $file -PathType Leaf)) { return $file }
+    }
     $null
 }
 

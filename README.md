@@ -205,5 +205,12 @@ are checksum-verified and only installed with your consent. The UI language foll
 
 ## Lizenz
 
-[MIT](LICENSE). rclone (MIT) und WinFsp (GPLv3 mit FLOSS-Ausnahme) werden zur Laufzeit von den offiziellen Quellen geladen
-und sind nicht Teil dieses Repositorys.
+© 2026 Steffen Schwabe · [Projekt auf GitHub](https://github.com/suebi76/CloudDrives)
+
+- **Quellcode:** [MIT-Lizenz](LICENSE). Du darfst ihn frei nutzen, verändern und weitergeben, solange der
+  Copyright-Hinweis und die Lizenz erhalten bleiben.
+- **Dokumentation und Grafiken** (Texte in diesem Repository außerhalb des Quellcodes, die Symbole):
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.de). Bei Weitergabe nennst du „Steffen Schwabe,
+  CloudDrives“ und verlinkst die Lizenz.
+- **Verwendete Bausteine:** rclone (MIT) und WinFsp (GPLv3 mit FLOSS-Ausnahme) werden zur Laufzeit von den offiziellen
+  Quellen geladen und sind nicht Teil dieses Repositorys; Einzelheiten in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

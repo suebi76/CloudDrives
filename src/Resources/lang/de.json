@@ -176,6 +176,7 @@
   "tray.disconnectAll": "Alle trennen",
   "tray.open": "CloudDrives öffnen",
   "tray.openSync": "CloudDrive-Sync öffnen",
+  "tray.about": "Über CloudDrives",
   "tray.diagnose": "Diagnose",
   "tray.hide": "Symbol ausblenden",
   "doctor.tray": "Symbol im Infobereich",
@@ -234,6 +235,13 @@
   "menu.refresh": "Aktualisieren",
   "menu.openLogs": "Protokolle öffnen",
   "menu.exit": "Beenden",
+  "menu.about": "Über CloudDrives",
+  "about.license": "Freie Software unter der MIT-Lizenz. Dokumentation und Grafiken stehen unter CC BY 4.0.",
+  "about.project": "Projekt auf GitHub: {0}",
+  "about.components": "Verwendete Bausteine",
+  "about.rclone": "rclone – Laufwerke und Anmeldung · MIT-Lizenz · © Nick Craig-Wood",
+  "about.winfsp": "WinFsp – Laufwerkstreiber, separat installiert · GPLv3 mit FLOSS-Ausnahme · © Bill Zissimopoulos",
+  "about.notices": "Alle Lizenzhinweise: {0}",
 
   "status.noDrives": "Noch keine Laufwerke eingerichtet. Mit [3] fügst du ein Konto hinzu.",
   "status.connected": "verbunden",
@@ -459,7 +467,7 @@
   "wizard.remove.revokeHint": "Tipp: Unter {0} kannst du den Zugriff zusätzlich beim Anbieter widerrufen.",
 
   "cli.unknownCommand": "Unbekannter Befehl: {0}",
-  "help.text": "Verwendung: CloudDrives.bat [Befehl] [Optionen]\n\n  (ohne Befehl)              Menü öffnen\n  connect | verbinden        Laufwerke verbinden (alle oder z. B. \"verbinden K\")\n  disconnect | trennen       Laufwerke trennen (--force: trotz laufender Uploads)\n  status                     Status anzeigen (--json für Skripte)\n  autostart an|aus           Laufwerke beim Windows-Start automatisch verbinden\n  install | installieren     nach %LOCALAPPDATA%\\Programs\\CloudDrives installieren (--desktop)\n  update | aktualisieren     neueste Version installieren (--check: nur prüfen)\n  uninstall | deinstallieren CloudDrives entfernen (--remove-data: auch Anmeldungen)\n  add-account                Konto hinzufügen\n  remove-account             Konto entfernen\n  relogin | neu-anmelden     Konto neu anmelden, ohne es zu entfernen (z. B. \"neu-anmelden K\")\n  change-client | client-id  eigene Google-Client-ID eines Kontos ändern\n  doctor | diagnose          Diagnose (--fix: automatisch beheben, --bundle: Support-Paket, --json)\n  watchdog [an|aus|status]   automatisch wieder verbinden (ohne Option: jetzt einmal prüfen)\n  tray [an|aus|status]       Symbol im Infobereich (ohne Option: jetzt anzeigen)\n  setup | einrichten         rclone und WinFsp prüfen bzw. installieren\n  version                    Programmversion anzeigen\n  help | hilfe               Diese Hilfe\n\nOptionen:\n  --silent                   Ohne Ausgabe (für den Autostart)\n\nProtokolle: %LOCALAPPDATA%\\CloudDrives\\logs",
+  "help.text": "Verwendung: CloudDrives.bat [Befehl] [Optionen]\n\n  (ohne Befehl)              Menü öffnen\n  connect | verbinden        Laufwerke verbinden (alle oder z. B. \"verbinden K\")\n  disconnect | trennen       Laufwerke trennen (--force: trotz laufender Uploads)\n  status                     Status anzeigen (--json für Skripte)\n  autostart an|aus           Laufwerke beim Windows-Start automatisch verbinden\n  install | installieren     nach %LOCALAPPDATA%\\Programs\\CloudDrives installieren (--desktop)\n  update | aktualisieren     neueste Version installieren (--check: nur prüfen)\n  uninstall | deinstallieren CloudDrives entfernen (--remove-data: auch Anmeldungen)\n  add-account                Konto hinzufügen\n  remove-account             Konto entfernen\n  relogin | neu-anmelden     Konto neu anmelden, ohne es zu entfernen (z. B. \"neu-anmelden K\")\n  change-client | client-id  eigene Google-Client-ID eines Kontos ändern\n  doctor | diagnose          Diagnose (--fix: automatisch beheben, --bundle: Support-Paket, --json)\n  watchdog [an|aus|status]   automatisch wieder verbinden (ohne Option: jetzt einmal prüfen)\n  tray [an|aus|status]       Symbol im Infobereich (ohne Option: jetzt anzeigen)\n  setup | einrichten         rclone und WinFsp prüfen bzw. installieren\n  about | info               Version, Lizenz und verwendete Bausteine\n  version                    Programmversion anzeigen\n  help | hilfe               Diese Hilfe\n\nOptionen:\n  --silent                   Ohne Ausgabe (für den Autostart)\n\nProtokolle: %LOCALAPPDATA%\\CloudDrives\\logs",
 
   "error.CD-0001.title": "Bereits verbunden",
   "error.CD-0001.fix": "Keine Aktion nötig.",
