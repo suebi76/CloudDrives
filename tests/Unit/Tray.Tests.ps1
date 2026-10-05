@@ -117,6 +117,17 @@ Describe 'Tray symbol' {
                 Should -Invoke Start-Process -Times 1 -Exactly -ParameterFilter { $FilePath -match 'CloudDrives\.bat$' -and $ArgumentList -match 'doctor --pause' }
             }
         }
+
+        It 'finds CloudDrives-Sync only when it is installed for the user' {
+            InModuleScope CloudDrives -Parameters @{ Root = $TestDrive } {
+                param($Root)
+                Get-CdSyncAppPath -LocalAppData $Root | Should -BeNullOrEmpty
+                $folder = Join-Path $Root 'Programs\CloudDrives-Sync'
+                New-Item -ItemType Directory -Path $folder -Force | Out-Null
+                Set-Content -LiteralPath (Join-Path $folder 'CloudDrives-Sync.exe') -Value 'x'
+                Get-CdSyncAppPath -LocalAppData $Root | Should -Be (Join-Path $folder 'CloudDrives-Sync.exe')
+            }
+        }
     }
 
     Context 'Diagnosis and command line' {
