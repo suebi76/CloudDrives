@@ -3,6 +3,13 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.3.2] – 2026-10-05
+
+### Changed
+
+- "CloudDrive-Sync öffnen" also finds CloudDrive-Sync when it was installed with its new setup program: the place it
+  records in Windows ("App Paths") comes first, then its usual folders
+
 ## [0.3.1] – 2026-10-05
 
 ### Added
