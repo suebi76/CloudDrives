@@ -74,7 +74,8 @@ function Update-CdTray {
     if ($tip.Length -gt 63) { $tip = $tip.Substring(0, 62) + [char]0x2026 }
     $notify.Text = $tip
 
-    $signature = $state.Level + '|' + $state.Text + '|' + ((@($state.Drives) | ForEach-Object { '{0}{1}{2}' -f $_.Letter, $_.Connected, $_.Problem }) -join ',')
+    $syncApp = Get-CdSyncAppPath
+    $signature = $state.Level + '|' + $state.Text + '|' + [bool]$syncApp + '|' + ((@($state.Drives) | ForEach-Object { '{0}{1}{2}' -f $_.Letter, $_.Connected, $_.Problem }) -join ',')
     $menu = $notify.ContextMenuStrip
     if ($signature -eq $script:CdTraySignature -or $menu.Visible) { return }
     $script:CdTraySignature = $signature
@@ -96,6 +97,8 @@ function Update-CdTray {
     [void](Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.disconnectAll') -OnClick { Start-CdTrayAction -Arguments @('disconnect') })
     [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
     [void](Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.open') -OnClick { Start-CdTrayAction -Visible })
+    # CloudDrives-Sync is a program of its own; it shows its window when it runs already.
+    if ($syncApp) { [void](Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.openSync') -Tag $syncApp -OnClick { Start-Process -FilePath ([string]$this.Tag) }) }
     [void](Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.diagnose') -OnClick { Start-CdTrayAction -Arguments @('doctor', '--pause') -Visible })
     [void]$menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator))
     [void](Add-CdTrayMenuItem -Menu $menu -Text (Get-CdText 'tray.hide') -OnClick { $script:CdTrayContext.ExitThread() })

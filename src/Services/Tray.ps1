@@ -23,6 +23,15 @@ function Test-CdTrayRunning {
     $false
 }
 
+function Get-CdSyncAppPath {
+    # CloudDrive-Sync - the separate program that keeps folders on this PC in step with Nextcloud, IServ and other
+    # WebDAV servers - when it is installed for this user. The symbol then opens it from its menu.
+    param([string]$LocalAppData = [Environment]::GetFolderPath('LocalApplicationData'))
+    $file = Join-Path $LocalAppData 'Programs\CloudDrive-Sync\CloudDrive-Sync.exe'
+    if (Test-Path -LiteralPath $file -PathType Leaf) { return $file }
+    $null
+}
+
 function Get-CdTrayState {
     # What the symbol shows: Level (ok/warn/error/idle), a short Text, every drive with its state and the
     # accounts whose sign-in has to be renewed.

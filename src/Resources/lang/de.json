@@ -175,6 +175,7 @@
   "tray.connectAll": "Alle verbinden",
   "tray.disconnectAll": "Alle trennen",
   "tray.open": "CloudDrives öffnen",
+  "tray.openSync": "CloudDrive-Sync öffnen",
   "tray.diagnose": "Diagnose",
   "tray.hide": "Symbol ausblenden",
   "doctor.tray": "Symbol im Infobereich",

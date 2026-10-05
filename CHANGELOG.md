@@ -3,6 +3,17 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [0.3.1] – 2026-10-05
+
+### Added
+
+- The symbol in the notification area opens CloudDrive-Sync - the new, separate program that keeps folders on
+  this PC in step with Nextcloud, IServ and other WebDAV servers - when it is installed ("CloudDrive-Sync öffnen")
+
+### Changed
+
+- Test data uses neutral example names and addresses
+
 ## [0.3.0] – 2026-10-04
 
 ### Added
