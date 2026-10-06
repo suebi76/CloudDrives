@@ -12,6 +12,10 @@ All notable changes to CloudDrives are documented here. The format follows
 
 ### Changed
 
+- The symbols of CloudDrives are under the MIT License like the source code; only the documentation stays CC BY 4.0
+- The privacy policy names every connection CloudDrives makes - the network check with servers of Google and
+  Microsoft, the diagnosis, updates from GitHub, the downloads of rclone and WinFsp - and that IServ and other WebDAV
+  servers take user name and password in CloudDrives
 - Code reorganised for readers, without a change in behaviour: the wizards are split by topic (`Setup`,
   `AccountWizards`, `AccountsMenu`, `DriveWizards`, `SettingsMenu`), the diagnosis into its checks (`Health`) and
   running them (`Doctor`), accounts into the sign-in (`AccountSignIn`) and the rest; central functions got a

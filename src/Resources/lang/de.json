@@ -250,7 +250,7 @@
   "menu.openLogs": "Protokolle öffnen",
   "menu.exit": "Beenden",
   "menu.about": "Über CloudDrives",
-  "about.license": "Freie Software unter der MIT-Lizenz. Dokumentation und Grafiken stehen unter CC BY 4.0.",
+  "about.license": "Freie Software unter der MIT-Lizenz. Die Dokumentation steht unter CC BY 4.0.",
   "about.project": "Projekt auf GitHub: {0}",
   "about.components": "Verwendete Bausteine",
   "about.rclone": "rclone – Laufwerke und Anmeldung · MIT-Lizenz · © Nick Craig-Wood",

@@ -223,9 +223,9 @@ Developer documentation in English: [architecture](docs/ARCHITECTURE.en.md), [de
 
 © 2026 Steffen Schwabe · [Projekt auf GitHub](https://github.com/suebi76/CloudDrives)
 
-- **Quellcode:** [MIT-Lizenz](LICENSE). Du darfst ihn frei nutzen, verändern und weitergeben, solange der
-  Copyright-Hinweis und die Lizenz erhalten bleiben.
-- **Dokumentation und Grafiken** (Texte in diesem Repository außerhalb des Quellcodes, die Symbole):
+- **Programm** (Quellcode und Symbole): [MIT-Lizenz](LICENSE). Du darfst es frei nutzen, verändern und weitergeben,
+  solange der Copyright-Hinweis und die Lizenz erhalten bleiben.
+- **Dokumentation** (die Texte in diesem Repository außerhalb des Programms):
   [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/deed.de). Bei Weitergabe nennst du „Steffen Schwabe,
   CloudDrives“ und verlinkst die Lizenz.
 - **Verwendete Bausteine:** rclone (MIT) und WinFsp (GPLv3 mit FLOSS-Ausnahme) werden zur Laufzeit von den offiziellen
