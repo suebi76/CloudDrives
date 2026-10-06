@@ -12,6 +12,7 @@ All notable changes to CloudDrives are documented here. The format follows
 
 ### Changed
 
+- The symbols of CloudDrives are under the MIT License like the source code; only the documentation stays CC BY 4.0
 - The privacy policy names every connection CloudDrives makes - the network check with servers of Google and
   Microsoft, the diagnosis, updates from GitHub, the downloads of rclone and WinFsp - and that IServ and other WebDAV
   servers take user name and password in CloudDrives
