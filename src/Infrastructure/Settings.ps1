@@ -94,6 +94,8 @@ function Update-CdSettingsSchema {
 }
 
 function Get-CdSettings {
+    # The settings, loaded once per process (with -Reload again from the file), migrated to the current schema
+    # and completed with the defaults of keys added later.
     param([switch]$Reload)
     if ($script:CdSettings -and -not $Reload) { return $script:CdSettings }
     $ctx = Get-CdContext
@@ -146,6 +148,8 @@ function Test-CdSettings {
 }
 
 function Save-CdSettings {
+    # Checks the settings (Test-CdSettings) and saves them in one step: a temporary file replaces the old one,
+    # which stays as settings.json.bak.
     param([System.Collections.IDictionary]$Settings)
     if (-not $Settings) { $Settings = Get-CdSettings }
     $problems = Test-CdSettings -Settings $Settings

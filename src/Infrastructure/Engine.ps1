@@ -7,6 +7,7 @@ function Get-CdEngineStateFile {
 }
 
 function Read-CdEngineState {
+    # Port and process of the engine as recorded when it was started (state\engine.json), or $null.
     $file = Get-CdEngineStateFile
     if (-not (Test-Path -LiteralPath $file)) { return $null }
     try { [IO.File]::ReadAllText($file, [Text.Encoding]::UTF8) | ConvertFrom-Json }
@@ -20,6 +21,8 @@ function Clear-CdEngineState {
 }
 
 function Get-CdEngineConnection {
+    # What a call to the engine needs: its port and process and the RC credentials from the secret store; $null
+    # when no engine was started.
     $state = Read-CdEngineState
     if (-not $state) { return $null }
     $credential = Get-CdSecret -Name 'rc'
@@ -71,11 +74,13 @@ function Get-CdEngine {
 }
 
 function Test-CdEngineRunning {
+    # True when the engine runs and answers (a recorded process alone is not enough).
     $engine = Get-CdEngine
     [bool]($engine -and $engine.Healthy)
 }
 
 function Stop-CdEngineProcess {
+    # Gives an engine process time to end and terminates it when it does not end in time.
     param([Parameter(Mandatory)][int]$ProcessId, [int]$WaitSec = 10)
     $process = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
     if (-not $process) { return }

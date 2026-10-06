@@ -1,4 +1,5 @@
-﻿# Loads the native helpers (Windows Credential Manager, detached process start) from Resources\Native.cs.
+﻿# Loads the native helpers from Resources\Native.cs: the Windows Credential Manager, the detached process start, the
+# status line of long operations and the identity of CloudDrives' console window.
 # If compilation is not possible (e.g. Constrained Language Mode), callers fall back to pure PowerShell.
 
 $script:CdNativeState = $null

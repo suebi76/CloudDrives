@@ -1,5 +1,5 @@
 ﻿# Commands for connecting and disconnecting drives. They return one result per drive and never write
-# to the screen, so the console menu, the command line and (later) the tray app can share them.
+# to the screen, so the console menu, the command line and the background tasks can share them.
 
 function Select-CdDrives {
     # Resolves drive ids/letters; without selection all drives (optionally only auto-connect ones).
@@ -18,6 +18,9 @@ function Select-CdDrives {
 }
 
 function Invoke-CdConnect {
+    # Connects drives - the given ones, otherwise all that connect automatically - and returns one result per
+    # drive: a drive that fails does not stop the others. Waits for the network and starts the engine first;
+    # $OnResult gets each result as soon as it is there.
     param(
         [string[]]$Selection,
         [switch]$Silent,
@@ -65,6 +68,8 @@ function Invoke-CdConnect {
 }
 
 function Invoke-CdDisconnect {
+    # Disconnects drives (the given ones, otherwise all). A drive with uploads still pending stays connected
+    # unless -Force (result CD-4006). Disconnected drives are no longer wanted, so the watchdog leaves them alone.
     param(
         [string[]]$Selection,
         [switch]$Force,
@@ -107,6 +112,8 @@ function Invoke-CdDisconnect {
 }
 
 function Get-CdStatus {
+    # The engine and every configured drive with its state (connected, pending uploads, storage) - from the
+    # engine when it runs, otherwise every drive as not connected.
     $engine = Get-CdEngine
     $drives = @()
     if ($engine -and $engine.Healthy) { $drives = @(Get-CdDriveStatusList -IncludeQuota) }
@@ -131,6 +138,7 @@ function Get-CdStatus {
 }
 
 function Get-CdSetupState {
+    # Whether CloudDrives can work on this PC (rclone found, WinFsp installed) and whether accounts exist yet.
     $rclone = Find-CdRclone
     [pscustomobject]@{
         Rclone      = $rclone

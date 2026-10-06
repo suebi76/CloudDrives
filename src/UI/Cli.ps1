@@ -278,6 +278,8 @@ function Invoke-CdCommandLineStatus {
 }
 
 function Invoke-CdCli {
+    # Runs one command line of CloudDrives.bat and returns its exit code: prepares the data folder, language
+    # and log, opens the menu or runs the command, and turns an error into its explanation and exit code 2.
     param([AllowEmptyCollection()][string[]]$Arguments = @())
     $parsed = ConvertFrom-CdCliArguments -Arguments $Arguments
     $silent = [bool]$parsed.Flags['silent']

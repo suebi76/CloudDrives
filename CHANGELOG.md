@@ -3,6 +3,20 @@
 All notable changes to CloudDrives are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/de/1.1.0/), versions follow [Semantic Versioning](https://semver.org/lang/de/).
 
+## [Unreleased]
+
+### Added
+
+- Developer documentation in German and English: architecture (`docs/ARCHITECTURE.md`), developer handbook
+  (`docs/DEVELOPMENT.md`) and the rules for contributions and code (`CONTRIBUTING.md`)
+
+### Changed
+
+- Code reorganised for readers, without a change in behaviour: the wizards are split by topic (`Setup`,
+  `AccountWizards`, `AccountsMenu`, `DriveWizards`, `SettingsMenu`), the diagnosis into its checks (`Health`) and
+  running them (`Doctor`), accounts into the sign-in (`AccountSignIn`) and the rest; central functions got a
+  description, outdated file headers were corrected
+
 ## [0.3.3] – 2026-10-05
 
 ### Added

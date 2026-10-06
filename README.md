@@ -189,12 +189,15 @@ Mit `CLOUDDRIVES_RELEASE_SOURCE=<Ordner mit release.json>` installieren und aktu
 Aufbau: `src/Infrastructure` (Technik) → `src/Providers` → `src/Services` → `src/Commands` → `src/UI`.
 Abhängigkeiten zeigen nur nach unten.
 
-- **Regeln für Beiträge:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Aufbau** – Schichten, Prozesse, Daten, der Weg zum Laufwerk, Eigenheiten von rclone und Windows:
+  [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- **Entwickler-Handbuch** – einrichten, prüfen, veröffentlichen: [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)
+- **Regeln für Beiträge und Code:** [CONTRIBUTING.md](CONTRIBUTING.md)
 - **Sicherheitsmodell und Melden von Lücken:** [SECURITY.md](SECURITY.md)
 - **Automatische Prüfungen:** Jeder Push und jeder Pull Request durchläuft auf GitHub Lint, Unit-Tests unter
   PowerShell 5.1 und 7 und einen Geheimnis-Scan.
 - **Releases:** Ein Versions-Tag erzeugt automatisch ZIP, `install.ps1` und Prüfsummen; ein Tag wie `v0.3.4-preview.1`
-  eine Testversion (siehe [CONTRIBUTING.md](CONTRIBUTING.md)).
+  eine Testversion (siehe [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)).
 
 ## English summary
 
@@ -212,6 +215,9 @@ the provider's own page (OAuth). Tokens are stored encrypted with a key kept in 
 are checksum-verified; you choose whether CloudDrives shows a notice (one click installs the new version), installs it
 automatically or only looks when you ask, and whether you receive test versions. The UI language follows Windows
 (German/English).
+
+Developer documentation in English: [architecture](docs/ARCHITECTURE.en.md), [developer handbook](docs/DEVELOPMENT.en.md),
+[contributing and code rules](CONTRIBUTING.en.md).
 
 ## Lizenz
 

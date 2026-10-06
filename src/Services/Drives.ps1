@@ -70,6 +70,8 @@ function Get-CdDriveFs {
 }
 
 function Get-CdMountOptions {
+    # rclone's mount options for a drive: a network drive with a name of its own and the file cache of the
+    # chosen profile.
     param(
         [Parameter(Mandatory)][System.Collections.IDictionary]$Drive,
         [Parameter(Mandatory)][System.Collections.IDictionary]$Account,
@@ -105,6 +107,7 @@ function Get-CdMountedDrives {
 }
 
 function Get-CdPendingUploadCount {
+    # Files of a drive that are being uploaded or wait for it; 0 when the engine cannot tell.
     param([Parameter(Mandatory)][string]$Fs)
     try {
         $stats = Invoke-CdRc -Command 'vfs/stats' -Body @{ fs = $Fs } -TimeoutSec 15
@@ -118,6 +121,7 @@ function Get-CdPendingUploadCount {
 }
 
 function Wait-CdDriveReady {
+    # Waits until Windows shows a newly connected drive, at most $TimeoutSec seconds.
     param([Parameter(Mandatory)][string]$MountPoint, [int]$TimeoutSec = 15)
     $deadline = (Get-Date).AddSeconds($TimeoutSec)
     while ((Get-Date) -lt $deadline) {
@@ -128,6 +132,9 @@ function Wait-CdDriveReady {
 }
 
 function Mount-CdDrive {
+    # Connects one drive through the engine (mount/mount) with the options of Get-CdMountOptions, waits until
+    # Windows shows it and gives it its name in Explorer. A vault's check file is read first: a wrong password stops
+    # here, before anything is mounted (CD-6001).
     param([Parameter(Mandatory)][System.Collections.IDictionary]$Drive)
     $settings = Get-CdSettings
     $account = Get-CdAccount -Id $Drive.account

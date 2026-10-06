@@ -9,6 +9,8 @@ function Get-CdSecretTarget {
 }
 
 function Get-CdSecretBackend {
+    # Where secrets live: the Windows Credential Manager - or, without the native helpers or with
+    # CLOUDDRIVES_SECRET_BACKEND=dpapi, a DPAPI-protected file in state\secrets.
     if ($env:CLOUDDRIVES_SECRET_BACKEND -eq 'dpapi') { return 'dpapi' }
     if (Initialize-CdNative) { return 'credman' }
     'dpapi'
@@ -34,6 +36,7 @@ function New-CdRandomSecret {
 }
 
 function Set-CdSecret {
+    # Stores a secret (the key of the rclone configuration, the RC credentials) for the current user.
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '', Justification = 'The value is immediately protected with DPAPI.')]
     param(
         [Parameter(Mandatory)][string]$Name,
@@ -57,6 +60,7 @@ function Set-CdSecret {
 }
 
 function Get-CdSecret {
+    # Reads a secret - from the Credential Manager, otherwise from its DPAPI file; $null when there is none.
     param([Parameter(Mandatory)][string]$Name)
     if ((Get-CdSecretBackend) -eq 'credman') {
         try {

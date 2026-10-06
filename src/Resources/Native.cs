@@ -1,5 +1,7 @@
 // Small native helpers for CloudDrives, compiled at runtime with Add-Type.
 // Must stay compatible with the C# 5 compiler used by Windows PowerShell 5.1.
+// One file on purpose, although it holds four independent classes: Windows PowerShell compiles it at every start of a
+// CloudDrives process (menu, symbol, watchdog every 5 minutes), and every further file would cost a compiler run.
 using System;
 using System.Collections;
 using System.Collections.Generic;

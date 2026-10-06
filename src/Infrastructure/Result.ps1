@@ -3,6 +3,7 @@
 # cannot be handled locally are thrown as exceptions carrying a CloudDrives error code (CD-xxxx).
 
 function New-CdResult {
+    # The uniform result of an action: Success, Code (CD-0000 = all right), Message for the user, Data, Detail.
     param(
         [bool]$Success = $true,
         [string]$Code = 'CD-0000',
@@ -30,6 +31,8 @@ function Send-CdProgress {
 }
 
 function New-CdException {
+    # An exception with a CloudDrives error code; the message is the title of the code in the user's language
+    # unless one is given.
     param(
         [Parameter(Mandatory)][string]$Code,
         [string]$Message,

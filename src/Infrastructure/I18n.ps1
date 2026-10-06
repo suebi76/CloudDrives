@@ -20,6 +20,8 @@ function Read-CdLanguageFile {
 }
 
 function Initialize-CdI18n {
+    # Chooses the language - the setting, or that of Windows ("auto"); everything but German is English - and
+    # loads its texts with English as the fallback.
     param([string]$Language = 'auto')
     if (-not $Language -or $Language -eq 'auto') { $Language = Get-CdSystemLanguage }
     if (@('de', 'en') -notcontains $Language) { $Language = 'en' }
@@ -32,6 +34,8 @@ function Initialize-CdI18n {
 function Get-CdLanguage { $script:CdLanguage }
 
 function Get-CdText {
+    # A text in the user's language by its key (Resources\lang\*.json), formatted with $FormatArgs: English
+    # when the language lacks it, "[key]" when both do.
     param(
         [Parameter(Mandatory, Position = 0)][string]$Key,
         [Parameter(Position = 1)][object[]]$FormatArgs
