@@ -26,6 +26,8 @@ function Protect-CdText {
 }
 
 function Write-CdLog {
+    # Writes one line to the log - redacted, never throwing. Lines below the log level are skipped;
+    # CLOUDDRIVES_DEBUG=1 writes everything.
     param(
         [ValidateSet('DEBUG', 'INFO', 'WARN', 'ERROR')][string]$Level = 'INFO',
         [string]$Component = 'App',

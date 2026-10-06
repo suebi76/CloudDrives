@@ -21,6 +21,13 @@ function Test-CdInstalled {
     [string]::Equals((Get-CdContext).AppRoot.TrimEnd('\'), (Get-CdInstallDir), [StringComparison]::OrdinalIgnoreCase)
 }
 
+function Get-CdPreferredSrcRoot {
+    # The installed copy when there is one, otherwise the running copy.
+    $installed = Join-Path (Get-CdInstallDir) 'src'
+    if (Test-Path -LiteralPath (Join-Path $installed 'CloudDrives.ps1')) { return $installed }
+    (Get-CdContext).SrcRoot
+}
+
 function Get-CdShortcutPaths {
     $startMenu = [Environment]::GetFolderPath('Programs')
     $desktop = [Environment]::GetFolderPath('Desktop')

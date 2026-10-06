@@ -67,6 +67,8 @@ function Get-CdRcloneChecksum {
 }
 
 function Install-CdRclone {
+    # Downloads rclone - by default the pinned version, checked against its SHA256 checksum in
+    # dependencies.json - into the data folder (deps\rclone\<version>).
     param([string]$Version)
     $deps = Get-CdDependencyInfo
     if (-not $Version) { $Version = [string]$deps.rclone.version }
@@ -122,6 +124,8 @@ function Install-CdRclone {
 }
 
 function Install-CdRcloneWithWinget {
+    # The fallback when the download fails: rclone through winget, used when it has at least the minimum
+    # version; $null otherwise.
     $winget = Get-Command -Name 'winget.exe' -ErrorAction SilentlyContinue
     if (-not $winget) { return $null }
     $deps = Get-CdDependencyInfo
